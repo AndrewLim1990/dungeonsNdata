@@ -1,4 +1,5 @@
 from actions import vampire_bite
+from utils import roll_dice
 
 import numpy as np
 
@@ -31,6 +32,13 @@ class Creature:
         """
         action.use(self, **kwargs)
 
+    def roll_initiative(self):
+        """
+        Roll initiative
+        Todo: Add modifier
+        """
+        modifier = 0
+        return roll_dice(20) + modifier
 
 
 # Todo: Move into DB
