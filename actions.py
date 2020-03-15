@@ -95,7 +95,7 @@ class Move(Action):
             target_x -= self.distance
         elif self.direction == "up":
             target_y += self.distance
-        elif self.direction == "left":
+        elif self.direction == "down":
             target_y -= self.distance
 
         is_legal_target_location = self.environment.check_if_legal(target_location=np.array([target_x, target_y]))
