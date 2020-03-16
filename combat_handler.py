@@ -1,8 +1,4 @@
-from actions import MoveLeft
-from actions import MoveRight
-from actions import MoveUp
-from actions import MoveDown
-from actions import vampire_bite
+import numpy as np
 
 class CombatHandler:
     """
@@ -57,6 +53,12 @@ class CombatHandler:
         while not self.combat_is_over:
             for combatant, initiative in self.turn_order:
                 print("Turn: {}".format(combatant.name))
-                combatant.use_action(MoveRight(), environment=self.environment)
-                combatant.use_action(vampire_bite, target_creature=self.combatants[0])
+                combatant_array = np.array(self.combatants)
+                is_not_self = combatant_array != combatant
+                target_creature = combatant_array[is_not_self][0]
+                combatant.use_action(
+                    np.random.choice(combatant.actions),
+                    environment=self.environment,
+                    target_creature=target_creature
+                )
             self.combat_is_over = True
