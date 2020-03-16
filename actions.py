@@ -31,15 +31,16 @@ class Attack(Action):
     """
     Represents a melee or ranged attack
     """
-    def __init__(self, hit_bonus, damage_bonus, num_damage_dice, damage_dice, range, *args, **kwargs):
+    def __init__(self, hit_bonus, damage_bonus, num_damage_dice, damage_dice, range, name="", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.hit_bonus = hit_bonus
         self.damage_bonus = damage_bonus
         self.num_damage_dice = num_damage_dice
         self.damage_dice = damage_dice
         self.range = range
+        self.name = name
 
-    def use(self, source_creature, target_creature):
+    def use(self, source_creature, target_creature, **kwargs):
         """
         Uses an attack to hit a target creature
         """
@@ -76,7 +77,7 @@ class Move(Action):
         self.coord_index = None
         self.sign = None
 
-    def use(self, source_creature, environment):
+    def use(self, source_creature, environment, **kwargs):
         """
         Moves the character
         """
@@ -132,8 +133,6 @@ class MoveDown(Move):
         self.sign = -1
 
 
-
 # Todo: Move into DB
-vampire_bite = Attack(hit_bonus=10, damage_bonus=10, num_damage_dice=2, damage_dice=6, range=5)
-
-
+vampire_bite = Attack(hit_bonus=10, damage_bonus=10, num_damage_dice=2, damage_dice=10, range=5, name="Vampire Bite")
+sword_slash = Attack(hit_bonus=5, damage_bonus=3, num_damage_dice=1, damage_dice=12, range=5, name="Sword Slash")
