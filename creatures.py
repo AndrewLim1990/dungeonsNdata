@@ -1,5 +1,5 @@
 from actions import vampire_bite
-from actions import Attack
+from actions import sword_slash
 from actions import MoveLeft
 from actions import MoveRight
 from actions import MoveUp
@@ -21,7 +21,7 @@ class Creature:
         self.armor_class = armor_class
         self.speed = speed
         self.movement_remaining = self.speed
-        self.actions = [] + actions
+        self.actions = [MoveLeft(), MoveRight(), MoveUp(), MoveDown()] + actions
         self.reactions = reactions
         self.location = location
         self.attacks_allowed = attacks_allowed
@@ -59,6 +59,6 @@ leotris = Creature(
     name="Leotris",
     hit_points=25,
     armor_class=16,
-    actions=[vampire_bite],
+    actions=[sword_slash],
     location=np.array([0, 5])
 )
