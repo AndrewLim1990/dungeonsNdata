@@ -1,4 +1,9 @@
 from actions import vampire_bite
+from actions import Attack
+from actions import MoveLeft
+from actions import MoveRight
+from actions import MoveUp
+from actions import MoveDown
 from utils import roll_dice
 
 import numpy as np
@@ -16,7 +21,7 @@ class Creature:
         self.armor_class = armor_class
         self.speed = speed
         self.movement_remaining = self.speed
-        self.actions = actions
+        self.actions = [] + actions
         self.reactions = reactions
         self.location = location
         self.attacks_allowed = attacks_allowed

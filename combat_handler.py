@@ -1,3 +1,9 @@
+from actions import MoveLeft
+from actions import MoveRight
+from actions import MoveUp
+from actions import MoveDown
+from actions import vampire_bite
+
 class CombatHandler:
     """
     This class implements a combat handler in charge of:
@@ -51,4 +57,6 @@ class CombatHandler:
         while not self.combat_is_over:
             for combatant, initiative in self.turn_order:
                 print("Turn: {}".format(combatant.name))
+                combatant.use_action(MoveRight(), environment=self.environment)
+                combatant.use_action(vampire_bite, target_creature=self.combatants[0])
             self.combat_is_over = True

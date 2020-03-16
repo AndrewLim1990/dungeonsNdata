@@ -71,41 +71,66 @@ class Attack(Action):
 
 
 class Move(Action):
-    def __init__(self, direction, distance, environment, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.direction = direction
-        self.distance = distance
-        self.environment = environment
+        self.coord_index = None
+        self.sign = None
 
-    def use(self, source_creature):
+    def use(self, source_creature, environment):
         """
         Moves the character
         """
-        has_movement = source_creature.movement_remaining >= self.distance
+        distance = 5  # five feet
+        has_movement = source_creature.movement_remaining >= distance
 
         if not has_movement:
             print("ILLEGAL ACTION: Creature has no movement left")
+            return -1
 
-        target_x = source_creature.location[0]
-        target_y = source_creature.location[1]
+        # Determine where creature wants to me to
+        target_location = source_creature.location.copy()
+        target_location[self.coord_index] = source_creature.location[self.coord_index] + distance * self.sign
 
-        if self.direction == "right":
-            target_x += self.distance
-        elif self.direction == "left":
-            target_x -= self.distance
-        elif self.direction == "up":
-            target_y += self.distance
-        elif self.direction == "down":
-            target_y -= self.distance
+        # Check if target location is allowable
+        is_legal_target_location = environment.check_if_legal(target_location=target_location)
 
-        is_legal_target_location = self.environment.check_if_legal(target_location=np.array([target_x, target_y]))
+        # Move if allowed
         if is_legal_target_location:
             old_location = source_creature.location
-            source_creature.location = np.array([target_x, target_y])
-            source_creature.movement_remaining -= self.distance
+            source_creature.location = target_location
+            source_creature.movement_remaining -= distance
             print("{} has moved from {} to {}".format(source_creature.name, old_location, source_creature.location))
         else:
             print("Location [{}, {}] is not legal in the environment: {}")
+
+
+class MoveLeft(Move):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.coord_index = 0
+        self.sign = -1
+
+
+class MoveRight(Move):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.coord_index = 0
+        self.sign = 1
+
+
+class MoveUp(Move):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.coord_index = 1
+        self.sign = 1
+
+
+class MoveDown(Move):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.coord_index = 1
+        self.sign = -1
+
 
 
 # Todo: Move into DB
