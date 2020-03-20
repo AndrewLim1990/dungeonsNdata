@@ -102,7 +102,7 @@ class Move(Action):
             source_creature.movement_remaining -= distance
             print("{} has moved from {} to {}".format(source_creature.name, old_location, source_creature.location))
         else:
-            print("Location [{}, {}] is not legal in the environment: {}")
+            print("Location {} is not legal in the environment: {}".format(target_location, environment.name))
 
 
 class MoveLeft(Move):
@@ -136,3 +136,4 @@ class MoveDown(Move):
 # Todo: Move into DB
 vampire_bite = Attack(hit_bonus=10, damage_bonus=10, num_damage_dice=2, damage_dice=10, range=5, name="Vampire Bite")
 sword_slash = Attack(hit_bonus=5, damage_bonus=3, num_damage_dice=1, damage_dice=12, range=5, name="Sword Slash")
+arrow_shot = Attack(hit_bonus=5, damage_bonus=3, num_damage_dice=1, damage_dice=12, range=60, name="Arrow Shot")
