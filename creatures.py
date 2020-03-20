@@ -1,6 +1,7 @@
 from actions import vampire_bite
 from actions import sword_slash
 from actions import arrow_shot
+from actions import EndTurn
 from actions import MoveLeft
 from actions import MoveRight
 from actions import MoveUp
@@ -10,8 +11,6 @@ from player_strategy import hayden
 from utils import roll_dice
 
 import numpy as np
-
-END_TURN_SIGNAL = 42
 
 
 class Creature:
@@ -28,7 +27,7 @@ class Creature:
         self.armor_class = armor_class
         self.speed = speed
         self.movement_remaining = self.speed
-        self.actions = [MoveLeft(), MoveRight(), MoveUp(), MoveDown()] + actions
+        self.actions = [MoveLeft(), MoveRight(), MoveUp(), MoveDown(), EndTurn()] + actions
         self.reactions = reactions
         self.location = location
         self.attacks_allowed = attacks_allowed
@@ -42,7 +41,7 @@ class Creature:
         """
         Uses action
         """
-        action.use(self, **kwargs)
+        return action.use(self, **kwargs)
 
     def roll_initiative(self):
         """
@@ -67,19 +66,6 @@ class Creature:
         self.actions_used = 0
         self.bonus_actions_used = 0
         self.movement_remaining = self.speed
-
-    def take_turn(self, combat_handler, strategy):
-        """
-        Performs actions during
-
-        Args:
-            combat_handler: contains relevant information such as turn order, terrain, locations, and combatants
-            strategy: contains strategy to perform
-        """
-        while True:
-            action = strategy.take_action(combatant=self, combat_handler=combat_handler)
-            if action == END_TURN_SIGNAL:
-                return
 
 
 

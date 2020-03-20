@@ -6,6 +6,7 @@ class Arena:
         self.name = name
     pass
 
+
 class SquareRoom(Arena):
     """
     30 x 30 ft room

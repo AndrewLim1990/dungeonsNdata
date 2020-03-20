@@ -1,3 +1,5 @@
+from settings import END_TURN_SIGNAL
+
 import numpy as np
 
 
@@ -48,6 +50,8 @@ class RandomStrategy(Strategy):
 
     def take_action(self, creature, combat_handler):
         """
+        Takes random action for the given creature
+
         Args:
             creature: Creature who's turn it is
             combat_handler: Contains environment, turn order, combatants, etc
@@ -57,11 +61,17 @@ class RandomStrategy(Strategy):
         creature_array = np.array(combat_handler.combatants)
         is_not_self = creature_array != creature
         target_creature = creature_array[is_not_self][0]
-        creature.use_action(
-            np.random.choice(creature.actions),
-            environment=combat_handler.environment,
-            target_creature=target_creature
-        )
+
+        while True:
+            action_signal = creature.use_action(
+                np.random.choice(creature.actions),
+                environment=combat_handler.environment,
+                target_creature=target_creature
+            )
+
+            if action_signal == END_TURN_SIGNAL:
+                print("ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING")
+                return
 
 
 hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")

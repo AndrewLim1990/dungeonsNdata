@@ -1,10 +1,9 @@
+from settings import END_TURN_SIGNAL
+from settings import TWENTY_SIDED_DICE
 from utils import roll_dice
 from utils import calculate_distance
 
 import numpy as np
-
-TWENTY_SIDED_DICE = 20
-
 
 class Action:
     """
@@ -131,6 +130,14 @@ class MoveDown(Move):
         super().__init__(*args, **kwargs)
         self.coord_index = 1
         self.sign = -1
+
+
+class EndTurn(Action):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def use(self, source_creature, **kwargs):
+        return END_TURN_SIGNAL
 
 
 # Todo: Move into DB
