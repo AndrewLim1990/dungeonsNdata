@@ -1,5 +1,3 @@
-import numpy as np
-
 class CombatHandler:
     """
     This class implements a combat handler in charge of:
@@ -39,26 +37,40 @@ class CombatHandler:
 
         print("Turn order: {}".format([(c.name, initiative) for c, initiative in self.turn_order]))
 
-    def reset_resources(self):
-        pass
+    def reset_combat_round_resources(self):
+        for combatant in self.combatants:
+            combatant.reset_round_resources()
+
+    def remove_dead_combatants(self):
+        """
+        Todo: Remove if dead - not when "downed" / 0HP
+        """
+        for combatant in self.combatants:
+            if combatant.hit_points <= 0:
+                self.remove_combatant(combatant)
+
+    def end_of_round_cleanup(self):
+        self.reset_combat_round_resources()
+        self.remove_dead_combatants()
 
     def check_if_combat_is_over(self):
-        pass
+        num_combatants = len(self.combatants)
+        self.combat_is_over = num_combatants <= 1
+        if self.combat_is_over:
+            return True
+        else:
+            return False
 
     def run(self):
         """
         Runs Combat
         """
         self.initialize_combat()
-        while not self.combat_is_over:
+        while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
-                print("Turn: {}".format(combatant.name))
-                combatant_array = np.array(self.combatants)
-                is_not_self = combatant_array != combatant
-                target_creature = combatant_array[is_not_self][0]
-                combatant.use_action(
-                    np.random.choice(combatant.actions),
-                    environment=self.environment,
-                    target_creature=target_creature
-                )
-            self.combat_is_over = True
+                combatant.player.take_action(creature=combatant, combat_handler=self)
+
+            self.end_of_round_cleanup()
+            if self.check_if_combat_is_over():
+                break
+
