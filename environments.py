@@ -51,4 +51,4 @@ class SquareRoom(Arena):
 
 
 # Todo: Place this into DB
-square_room = SquareRoom(room_width=90, room_length=30)
+square_room = SquareRoom(room_width=180, room_length=30)

@@ -2,6 +2,7 @@ import curses
 import time
 
 from utils import draw_location
+from actions import Attack
 
 
 class CombatHandler:
@@ -80,20 +81,36 @@ class CombatHandler:
         # Clear old location
         draw_location(
             self.console,
-            x=int(old_location[1] / 5),
-            y=int(old_location[0] / 5),
+            x=int(old_location[0] / 5),
+            y=int(old_location[1] / 5),
             char=" "
         )
 
         # Draw new location
         draw_location(
             self.console,
-            x=int(creature.location[1] / 5),
-            y=int(creature.location[0] / 5),
+            x=int(creature.location[0] / 5),
+            y=int(creature.location[1] / 5),
             char=creature.symbol
         )
 
         time.sleep(0.065)
+
+    def report_combat(self, meta_data_list):
+        """
+        Reports any damage
+        """
+        damage_report = []
+        for meta_data in meta_data_list:
+            if meta_data:
+                if meta_data.get("type") == Attack:
+                    damage_report.append(meta_data)
+        draw_location(
+            self.console,
+            x=0,
+            y=int(self.environment.room_length / 5) + 2,
+            char=str(damage_report)
+        )
 
     def run(self):
         """
@@ -103,10 +120,11 @@ class CombatHandler:
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
                 starting_location = combatant.location
-                _, meta_data = combatant.player.take_action(creature=combatant, combat_handler=self)
+                _, meta_data_list = combatant.player.take_action(creature=combatant, combat_handler=self)
 
                 # Visualize movement
                 self.visualize(creature=combatant, old_location=starting_location)
+                self.report_combat(meta_data_list)
 
             self.end_of_round_cleanup()
             if self.check_if_combat_is_over():

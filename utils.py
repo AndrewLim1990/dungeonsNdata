@@ -10,5 +10,5 @@ def calculate_distance(coord1, coord2):
 
 
 def draw_location(console, x, y, char="*"):
-    console.addstr(x, y, char)
+    console.addstr(y, x, char)
     console.refresh()

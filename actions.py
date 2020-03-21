@@ -61,10 +61,18 @@ class Attack(Action):
         # Legal attack:
         hit_roll = roll_dice(TWENTY_SIDED_DICE) + self.hit_bonus
         source_creature.attacks_used += 1
+        meta_data = {
+            "type": type(self),
+            "source_creature": source_creature,
+            "target_creature": target_creature,
+            "hit_roll": hit_roll,
+            "damage": 0,
+        }
 
         if hit_roll >= target_creature.armor_class:
             damage = np.sum([roll_dice(self.damage_dice) for _ in range(self.num_damage_dice)])
             target_creature.hit_points -= damage
+            meta_data.update({"damage": damage})
             return SUCCESSFUL_ATTACK_SIGNAL, meta_data
         else:
             return MISSED_ATTACK_SIGNAL, meta_data

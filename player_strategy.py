@@ -62,6 +62,7 @@ class RandomStrategy(Strategy):
         creature_array = np.array(combat_handler.combatants)
         is_not_self = creature_array != creature
         target_creature = creature_array[is_not_self][0]
+        meta_data_list = list()
 
         while True:
             starting_location = creature.location
@@ -70,10 +71,11 @@ class RandomStrategy(Strategy):
                 environment=combat_handler.environment,
                 target_creature=target_creature
             )
+            meta_data_list.append(meta_data)
 
             if action_signal == END_TURN_SIGNAL:
                 meta_data = {"starting_location": starting_location}
-                return SUCCESSFUL_PLAYER_TURN_SIGNAL, meta_data
+                return SUCCESSFUL_PLAYER_TURN_SIGNAL, meta_data_list
 
 
 hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
