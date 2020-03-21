@@ -20,7 +20,7 @@ class Creature:
     def __init__(
             self, player, name, hit_points, armor_class, location,
             speed=30, actions=[], reactions=[], attacks_allowed=1,
-            spells_allowed=1):
+            spells_allowed=1, symbol="x"):
         self.player = player
         self.name = name
         self.hit_points = hit_points
@@ -36,6 +36,7 @@ class Creature:
         self.spells_used = 0
         self.actions_used = 0
         self.bonus_actions_used = 0
+        self.symbol = symbol
 
     def use_action(self, action, **kwargs):
         """
@@ -76,7 +77,8 @@ vampire = Creature(
     hit_points=100,
     armor_class=17,
     actions=[vampire_bite],
-    location=np.array([0, 0])
+    location=np.array([0, 0]),
+    symbol="@"
 )
 
 leotris = Creature(
@@ -85,5 +87,6 @@ leotris = Creature(
     hit_points=25,
     armor_class=16,
     actions=[arrow_shot],
-    location=np.array([25, 25])
+    location=np.array([25, 25]),
+    symbol="x"
 )

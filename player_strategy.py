@@ -1,4 +1,5 @@
 from settings import END_TURN_SIGNAL
+from settings import SUCCESSFUL_PLAYER_TURN_SIGNAL
 
 import numpy as np
 
@@ -36,7 +37,7 @@ class Player:
         """
         Todo: Fill in method documentation
         """
-        self.strategy.take_action(creature, combat_handler)
+        return self.strategy.take_action(creature, combat_handler)
 
 
 class PlayerCharacter(Player):
@@ -57,21 +58,22 @@ class RandomStrategy(Strategy):
             combat_handler: Contains environment, turn order, combatants, etc
         """
         player = creature.player
-        print("Turn: {}({})".format(creature.name, player.name))
+        # print("Turn: {}({})".format(creature.name, player.name))
         creature_array = np.array(combat_handler.combatants)
         is_not_self = creature_array != creature
         target_creature = creature_array[is_not_self][0]
 
         while True:
-            action_signal = creature.use_action(
+            starting_location = creature.location
+            action_signal, meta_data = creature.use_action(
                 np.random.choice(creature.actions),
                 environment=combat_handler.environment,
                 target_creature=target_creature
             )
 
             if action_signal == END_TURN_SIGNAL:
-                print("ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING ENDING")
-                return
+                meta_data = {"starting_location": starting_location}
+                return SUCCESSFUL_PLAYER_TURN_SIGNAL, meta_data
 
 
 hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")

@@ -1,5 +1,10 @@
 from settings import END_TURN_SIGNAL
 from settings import TWENTY_SIDED_DICE
+from settings import SUCCESSFUL_MOVE_SIGNAL
+from settings import UNSUCCESSFUL_MOVE_SIGNAL
+from settings import INVALID_ATTACK_SIGNAL
+from settings import SUCCESSFUL_ATTACK_SIGNAL
+from settings import MISSED_ATTACK_SIGNAL
 from utils import roll_dice
 from utils import calculate_distance
 
@@ -43,20 +48,15 @@ class Attack(Action):
         """
         Uses an attack to hit a target creature
         """
+        meta_data = None
         # Check for illegal attacks
         is_under_attacks_allowed = source_creature.attacks_used < source_creature.attacks_allowed
         distance = calculate_distance(source_creature.location, target_creature.location)
         is_in_range = distance <= self.range
         if not is_in_range:
-            print("ILLEGAL ACTION: Target is not within range. \n  source(: {}\n  target: {}\n  distance: {}".format(
-                source_creature.location,
-                target_creature.location,
-                distance
-            ))
-            return
-        elif not is_under_attacks_allowed :
-            print("ILLEGAL ACTION: {}/{} attacks already used.".format(source_creature.attacks_used, source_creature.attacks_allowed))
-            return
+            return INVALID_ATTACK_SIGNAL, meta_data
+        elif not is_under_attacks_allowed:
+            return INVALID_ATTACK_SIGNAL, meta_data
 
         # Legal attack:
         hit_roll = roll_dice(TWENTY_SIDED_DICE) + self.hit_bonus
@@ -65,9 +65,9 @@ class Attack(Action):
         if hit_roll >= target_creature.armor_class:
             damage = np.sum([roll_dice(self.damage_dice) for _ in range(self.num_damage_dice)])
             target_creature.hit_points -= damage
-            print("{}: {} hits with {} points of damage. {} is down to {}HP".format(source_creature.name, hit_roll, damage, target_creature.name, target_creature.hit_points))
+            return SUCCESSFUL_ATTACK_SIGNAL, meta_data
         else:
-            print("{} missed with a hit roll of {}. {} has {}AC.".format(source_creature.name, hit_roll, target_creature.name, target_creature.armor_class))
+            return MISSED_ATTACK_SIGNAL, meta_data
 
 
 class Move(Action):
@@ -82,10 +82,10 @@ class Move(Action):
         """
         distance = 5  # five feet
         has_movement = source_creature.movement_remaining >= distance
+        meta_data = None
 
         if not has_movement:
-            print("ILLEGAL ACTION: Creature has no movement left")
-            return -1
+            return UNSUCCESSFUL_MOVE_SIGNAL, meta_data
 
         # Determine where creature wants to me to
         target_location = source_creature.location.copy()
@@ -99,9 +99,10 @@ class Move(Action):
             old_location = source_creature.location
             source_creature.location = target_location
             source_creature.movement_remaining -= distance
-            print("{} has moved from {} to {}".format(source_creature.name, old_location, source_creature.location))
+            meta_data = {"old_location": old_location, "new_location": source_creature.location}
+            return SUCCESSFUL_MOVE_SIGNAL, meta_data
         else:
-            print("Location {} is not legal in the environment: {}".format(target_location, environment.name))
+            return UNSUCCESSFUL_MOVE_SIGNAL, meta_data
 
 
 class MoveLeft(Move):
@@ -137,7 +138,8 @@ class EndTurn(Action):
         super().__init__(*args, **kwargs)
 
     def use(self, source_creature, **kwargs):
-        return END_TURN_SIGNAL
+        meta_attributes = None
+        return END_TURN_SIGNAL, meta_attributes
 
 
 # Todo: Move into DB

@@ -1,3 +1,9 @@
+import curses
+import time
+
+from utils import draw_location
+
+
 class CombatHandler:
     """
     This class implements a combat handler in charge of:
@@ -8,11 +14,13 @@ class CombatHandler:
             * Action
             * Bonus Action
     """
-    def __init__(self, environment, combatants=[]):
+    def __init__(self, environment, console, combatants=[]):
         self.environment = environment
         self.combatants = combatants
         self.turn_order = list()
         self.combat_is_over = False
+        self.console = console
+        self.first_visualization = True
 
     def add_combatant(self, combatant):
         self.combatants.append(combatant)
@@ -35,7 +43,7 @@ class CombatHandler:
             self.turn_order.append([combatant, combatant.roll_initiative()])
         self.turn_order = sorted(self.turn_order, key=lambda x: x[1], reverse=True)
 
-        print("Turn order: {}".format([(c.name, initiative) for c, initiative in self.turn_order]))
+        # print("Turn order: {}".format([(c.name, initiative) for c, initiative in self.turn_order]))
 
     def reset_combat_round_resources(self):
         for combatant in self.combatants:
@@ -61,6 +69,32 @@ class CombatHandler:
         else:
             return False
 
+    def visualize(self, creature, old_location):
+        """
+        Visualizes state of battlefield
+        """
+        if self.first_visualization:
+            self.environment.draw_board(self.console)
+            self.first_visualization = False
+
+        # Clear old location
+        draw_location(
+            self.console,
+            x=int(old_location[1] / 5),
+            y=int(old_location[0] / 5),
+            char=" "
+        )
+
+        # Draw new location
+        draw_location(
+            self.console,
+            x=int(creature.location[1] / 5),
+            y=int(creature.location[0] / 5),
+            char=creature.symbol
+        )
+
+        time.sleep(0.065)
+
     def run(self):
         """
         Runs Combat
@@ -68,9 +102,14 @@ class CombatHandler:
         self.initialize_combat()
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
-                combatant.player.take_action(creature=combatant, combat_handler=self)
+                starting_location = combatant.location
+                _, meta_data = combatant.player.take_action(creature=combatant, combat_handler=self)
+
+                # Visualize movement
+                self.visualize(creature=combatant, old_location=starting_location)
 
             self.end_of_round_cleanup()
             if self.check_if_combat_is_over():
                 break
+
 
