@@ -24,6 +24,7 @@ class Creature:
         self.player = player
         self.name = name
         self.hit_points = hit_points
+        self.max_hit_points = hit_points
         self.armor_class = armor_class
         self.speed = speed
         self.movement_remaining = self.speed
@@ -77,7 +78,7 @@ vampire = Creature(
     hit_points=100,
     armor_class=17,
     actions=[vampire_bite],
-    location=np.array([0, 0]),
+    location=np.array([5, 5]),
     symbol="@"
 )
 
@@ -86,7 +87,7 @@ leotris = Creature(
     name="Leotris",
     hit_points=25,
     armor_class=16,
-    actions=[arrow_shot],
-    location=np.array([25, 25]),
+    actions=[arrow_shot, sword_slash],
+    location=np.array([5, 10]),
     symbol="x"
 )

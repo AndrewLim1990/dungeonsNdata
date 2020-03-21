@@ -68,13 +68,14 @@ class RandomStrategy(Strategy):
             starting_location = creature.location
             action_signal, meta_data = creature.use_action(
                 np.random.choice(creature.actions),
-                environment=combat_handler.environment,
+                combat_handler=combat_handler,
                 target_creature=target_creature
             )
             meta_data_list.append(meta_data)
 
             if action_signal == END_TURN_SIGNAL:
                 meta_data = {"starting_location": starting_location}
+                meta_data_list.append(meta_data)
                 return SUCCESSFUL_PLAYER_TURN_SIGNAL, meta_data_list
 
 

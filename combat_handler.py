@@ -1,4 +1,3 @@
-import curses
 import time
 
 from utils import draw_location
@@ -70,6 +69,16 @@ class CombatHandler:
         else:
             return False
 
+    def check_legal_movement(self, target_location):
+        """
+        Check for clashing into other creatures
+        """
+        is_legal = True
+        for creature in self.combatants:
+            if (target_location == creature.location).all():
+                is_legal = False
+        return is_legal
+
     def visualize(self, creature, old_location):
         """
         Visualizes state of battlefield
@@ -94,22 +103,43 @@ class CombatHandler:
             char=creature.symbol
         )
 
-        time.sleep(0.065)
+        time.sleep(0.25)
 
     def report_combat(self, meta_data_list):
         """
         Reports any damage
         """
-        damage_report = []
+        damage_reports = []
         for meta_data in meta_data_list:
             if meta_data:
                 if meta_data.get("type") == Attack:
-                    damage_report.append(meta_data)
+                    damage_reports.append(meta_data)
+
+        final_damage_report = ""
+        for damage_report in damage_reports:
+            source_creature = damage_report["source_creature"]
+            target_creature = damage_report["target_creature"]
+            damage = damage_report["damage"]
+            hit_roll = damage_report["hit_roll"]
+
+            if hit_roll >= target_creature.armor_class:
+                final_damage_report += "{} rolled a {}/{}AC. {} damage done to {}. {}/{} HP left.\n".format(
+                    source_creature.name,
+                    hit_roll,
+                    target_creature.armor_class,
+                    damage,
+                    target_creature.name,
+                    target_creature.hit_points,
+                    target_creature.max_hit_points
+                )
+            if target_creature.hit_points <= 0:
+                final_damage_report += "{} has killed {}.".format(source_creature.name, target_creature.name)
+
         draw_location(
             self.console,
             x=0,
             y=int(self.environment.room_length / 5) + 2,
-            char=str(damage_report)
+            char=str(final_damage_report)
         )
 
     def run(self):
@@ -123,8 +153,9 @@ class CombatHandler:
                 _, meta_data_list = combatant.player.take_action(creature=combatant, combat_handler=self)
 
                 # Visualize movement
-                self.visualize(creature=combatant, old_location=starting_location)
-                self.report_combat(meta_data_list)
+                if self.console:
+                    self.visualize(creature=combatant, old_location=starting_location)
+                    self.report_combat(meta_data_list)
 
             self.end_of_round_cleanup()
             if self.check_if_combat_is_over():

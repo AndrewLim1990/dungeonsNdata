@@ -84,7 +84,7 @@ class Move(Action):
         self.coord_index = None
         self.sign = None
 
-    def use(self, source_creature, environment, **kwargs):
+    def use(self, source_creature, combat_handler, **kwargs):
         """
         Moves the character
         """
@@ -100,7 +100,9 @@ class Move(Action):
         target_location[self.coord_index] = source_creature.location[self.coord_index] + distance * self.sign
 
         # Check if target location is allowable
-        is_legal_target_location = environment.check_if_legal(target_location=target_location)
+        is_legal_env_target_location = combat_handler.environment.check_if_legal(target_location=target_location)
+        is_legal_collision_target_location = combat_handler.check_legal_movement(target_location=target_location)
+        is_legal_target_location = is_legal_env_target_location and is_legal_collision_target_location
 
         # Move if allowed
         if is_legal_target_location:

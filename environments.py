@@ -1,5 +1,3 @@
-import numpy as np
-
 class Arena:
     """
     Represents the terrain. Ex: 30x30 ft grid
@@ -27,9 +25,9 @@ class SquareRoom(Arena):
         """
         x = target_location[0]
         y = target_location[1]
-        if (x < 0) or (x >= self.room_width):
+        if (x < 5) or (x >= (self.room_width - 5)):
             return False
-        elif (y < 0) or (y >= self.room_length):
+        elif (y < 5) or (y >= (self.room_length - 5)):
             return False
         else:
             return True
@@ -51,4 +49,4 @@ class SquareRoom(Arena):
 
 
 # Todo: Place this into DB
-square_room = SquareRoom(room_width=180, room_length=30)
+square_room = SquareRoom(room_width=50, room_length=50)

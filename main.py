@@ -5,12 +5,16 @@ from combat_handler import CombatHandler
 
 import curses
 import sys
+import time
 import traceback
 
 
-
 def main():
-    console = curses.initscr()
+    try:
+        console = curses.initscr()
+    except Exception as e:
+        console = None
+
     try:
         combat_handler = CombatHandler(
             environment=square_room,
@@ -18,14 +22,15 @@ def main():
             console=console
         )
         combat_handler.run()
-        curses.endwin()
+        time.sleep(5)
+        if console:
+            curses.endwin()
     except Exception as e:
-        curses.endwin()
+        if console:
+            curses.endwin()
         print(e)
         traceback.print_exc(file=sys.stdout)
 
 
 if __name__ == "__main__":
-    # To do:
-    #  Make is so people will move different amounts on their turn. Not just 5 feet
     main()
