@@ -10,11 +10,17 @@ import traceback
 
 
 def main():
+    """
+    Todo: Provide main documentation/overview
+    """
+    # Try to obtain console for visualization
     try:
         console = curses.initscr()
     except Exception as e:
+        print(e)
         console = None
 
+    # Attempt
     try:
         combat_handler = CombatHandler(
             environment=square_room,
@@ -23,13 +29,12 @@ def main():
         )
         combat_handler.run()
         time.sleep(5)
-        if console:
-            curses.endwin()
     except Exception as e:
-        if console:
-            curses.endwin()
         print(e)
         traceback.print_exc(file=sys.stdout)
+
+    if console:
+        curses.endwin()
 
 
 if __name__ == "__main__":

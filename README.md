@@ -1,4 +1,12 @@
 # Dungeons and Dragons RL Bot
 
-* What's that smell like?
-* Smells like WIP'd cream
+## V1 Scope:
+* 1v1
+* Simple rectangular board
+* Random action strategy implemented
+* 
+
+## Notes:
+### Inputs/features given to agents:
+* Location of all combatants
+* 
