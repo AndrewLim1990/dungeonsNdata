@@ -69,6 +69,16 @@ class Creature:
         self.bonus_actions_used = 0
         self.movement_remaining = self.speed
 
+    def is_alive(self):
+        """
+        :return:
+        """
+        if self.hit_points > 0:
+            is_alive = True
+        else:
+            is_alive = False
+        return is_alive
+
 
 
 # Todo: Move into DB
