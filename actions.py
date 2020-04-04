@@ -5,8 +5,8 @@ from settings import UNSUCCESSFUL_MOVE_SIGNAL
 from settings import INVALID_ATTACK_SIGNAL
 from settings import SUCCESSFUL_ATTACK_SIGNAL
 from settings import MISSED_ATTACK_SIGNAL
-from utils import roll_dice
-from utils import calculate_distance
+from utils.dnd_utils import roll_dice
+from utils.dnd_utils import calculate_distance
 
 import numpy as np
 

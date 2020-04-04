@@ -1,6 +1,6 @@
 import time
 
-from utils import draw_location
+from utils.dnd_utils import draw_location
 from actions import Attack
 
 

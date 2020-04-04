@@ -8,7 +8,7 @@ from actions import MoveUp
 from actions import MoveDown
 from player_strategy import dungeon_master
 from player_strategy import hayden
-from utils import roll_dice
+from utils.dnd_utils import roll_dice
 
 import numpy as np
 
