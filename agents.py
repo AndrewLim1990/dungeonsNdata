@@ -1,7 +1,9 @@
 from collections import defaultdict
-from utils.agent_utils import EGreedyPolicy
 
 import numpy as np
+
+from settings import SUCCESSFUL_PLAYER_TURN_SIGNAL
+from utils.agent_utils import EGreedyPolicy
 
 
 class Agent:
@@ -14,11 +16,14 @@ class TabularAgent(Agent):
 
 
 class QLearningTabularAgent(TabularAgent):
-    def __init__(self, combat_handler, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05):
+    def __init__(self, combat_handler, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-3,
+                 gamma=0.95):
         super().__init__()
         self.max_training_steps = int(max_training_steps)
         self.combat_hander = combat_handler
         self.policy = EGreedyPolicy(n_steps=max_training_steps, epsilon_start=epsilon_start, epsilon_end=epsilon_end)
+        self.alpha = alpha
+        self.gamma = gamma
 
     def initialize_q(self, creature):
         num_actions = len(creature.actions)
@@ -48,12 +53,13 @@ class QLearningTabularAgent(TabularAgent):
         best_action = self.index_to_action[best_action_index]
         return best_action
 
-    def obtain_current_state(self, creature, enemy):
+    def obtain_current_state(self, creature):
         """
         :param creature:
         :param enemy:
         :return:
         """
+        enemy = self.determine_enemy(creature)
         current_state = (
             creature.location[0],  # creature x loc
             creature.location[1],  # creature y loc
@@ -66,8 +72,7 @@ class QLearningTabularAgent(TabularAgent):
 
     def sample_action(self, t, creature):
         actions = creature.actions
-        enemy = self.determine_enemy(creature)
-        state = self.obtain_current_state(creature, enemy)
+        state = self.obtain_current_state(creature)
         best_action = self.get_best_action(state)
 
         # Obtain action via e-greedy policy
@@ -75,16 +80,43 @@ class QLearningTabularAgent(TabularAgent):
 
         return action
 
-    def train(self):
+    def determine_reward(self, enemy):
+        reward = 0
+        if enemy.is_alive() is False:
+            reward = 10
+        return reward
+
+    def train(self, creature, combat_handler):
+        self.initialize_q(creature)
         for t in range(self.max_training_steps):
             # Sample an action a given s
             action = self.sample_action(t)
-            # Perform action, obtain s', r
-            # Record s, a, r, s' in replay buffer
 
-    def perform_action(self):
+            # Perform action, obtain s', r
+            enemy = self.determine_enemy(creature)
+            current_state = self.obtain_current_state(creature)
+            self.take_action(creature, action, enemy, combat_handler)
+            next_state = self.obtain_current_state(creature)
+            reward = self.determine_reward(enemy)
+
+            # Perform update:
+            self.Q[current_state] += self.alpha * (
+                        reward + self.gamma * np.max(self.Q[next_state]) - self.Q[current_state])
+
+    def take_action(self, creature, action, enemy, combat_handler):
         """
         :return: action
         """
-        action = None
-        return action
+        meta_data_list = list()
+
+        starting_location = creature.location
+        action_signal, meta_data = creature.use_action(
+            action,
+            combat_handler=combat_handler,
+            target_creature=enemy
+        )
+        meta_data_list.append(meta_data)
+        meta_data = {"starting_location": starting_location}
+        meta_data_list.append(meta_data)
+
+        return SUCCESSFUL_PLAYER_TURN_SIGNAL, meta_data_list
