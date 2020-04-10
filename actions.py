@@ -156,3 +156,4 @@ class EndTurn(Action):
 vampire_bite = Attack(hit_bonus=10, damage_bonus=10, num_damage_dice=2, damage_dice=10, range=5, name="Vampire Bite")
 sword_slash = Attack(hit_bonus=5, damage_bonus=3, num_damage_dice=1, damage_dice=12, range=5, name="Sword Slash")
 arrow_shot = Attack(hit_bonus=5, damage_bonus=3, num_damage_dice=1, damage_dice=12, range=60, name="Arrow Shot")
+hammer_smash = Attack(hit_bonus=6, damage_bonus=5, num_damage_dice=1, damage_dice=12, range=3, name="Hammer Smash")

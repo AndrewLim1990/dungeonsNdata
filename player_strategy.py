@@ -81,3 +81,4 @@ class RandomStrategy(Strategy):
 
 hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
 dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")
+grant = PlayerCharacter(strategy=RandomStrategy(), name="Grant")
