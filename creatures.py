@@ -101,3 +101,12 @@ leotris = Creature(
     location=np.array([5, 10]),
     symbol="x"
 )
+magnus = Creature(
+    player=grant,
+    name="Magnus",
+    hit_points=21,
+    armor_class=18,
+    actions=[hammer_smash],
+    location=np.array([3, 8]),
+    symbol="y"
+)
