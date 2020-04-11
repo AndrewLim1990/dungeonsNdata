@@ -6,6 +6,7 @@ from actions import MoveLeft
 from actions import MoveRight
 from actions import MoveUp
 from actions import MoveDown
+from copy import deepcopy
 from player_strategy import dungeon_master
 from player_strategy import hayden
 from utils.dnd_utils import roll_dice
@@ -79,13 +80,26 @@ class Creature:
             is_alive = False
         return is_alive
 
+    def sample_enemy(self, combat_handler):
+        """
+        todo: remove self from potential enemies
+        :param combat_handler:
+        :return:
+        """
+        creatures = combat_handler.combatants
+        creatures = [creature for creature in creatures if creature.name != self.name]
+        random_enemy = np.random.choice(creatures)
+        return random_enemy
+
+    def full_heal(self):
+        self.hit_points = self.max_hit_points
 
 
 # Todo: Move into DB
 vampire = Creature(
     player=dungeon_master,
     name="Strahd",
-    hit_points=100,
+    hit_points=200,
     armor_class=17,
     actions=[vampire_bite],
     location=np.array([5, 5]),

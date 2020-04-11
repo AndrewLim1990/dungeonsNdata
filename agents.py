@@ -16,19 +16,22 @@ class TabularAgent(Agent):
 
 
 class QLearningTabularAgent(TabularAgent):
-    def __init__(self, combat_handler, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-3,
+    def __init__(self, max_training_steps=2e7, epsilon_start=0.75, epsilon_end=0.005, alpha=1e-3,
                  gamma=0.95):
         super().__init__()
         self.max_training_steps = int(max_training_steps)
-        self.combat_hander = combat_handler
         self.policy = EGreedyPolicy(n_steps=max_training_steps, epsilon_start=epsilon_start, epsilon_end=epsilon_end)
         self.alpha = alpha
         self.gamma = gamma
+        self.Q = None
+        self.action_to_index = None
+        self.index_to_action = None
+        self.t = 0
 
     def initialize_q(self, creature):
         num_actions = len(creature.actions)
         self.Q = defaultdict(lambda: np.zeros(num_actions))
-        self.action_to_index = {k: v for k, v in zip(range(num_actions), creature.actions)}
+        self.action_to_index = {k: v for k, v in zip(creature.actions, range(num_actions))}
         self.index_to_action = {v: k for k, v in self.action_to_index.items()}
 
     def determine_enemy(self, creature, combat_handler):
@@ -53,13 +56,13 @@ class QLearningTabularAgent(TabularAgent):
         best_action = self.index_to_action[best_action_index]
         return best_action
 
-    def obtain_current_state(self, creature):
+    def obtain_current_state(self, creature, combat_handler):
         """
         :param creature:
         :param enemy:
         :return:
         """
-        enemy = self.determine_enemy(creature)
+        enemy = self.determine_enemy(creature, combat_handler)
         current_state = (
             creature.location[0],  # creature x loc
             creature.location[1],  # creature y loc
@@ -70,38 +73,39 @@ class QLearningTabularAgent(TabularAgent):
         )
         return current_state
 
-    def sample_action(self, t, creature):
+    def sample_action(self, creature, combat_handler):
         actions = creature.actions
-        state = self.obtain_current_state(creature)
+        enemy = creature.player.strategy.determine_enemy(creature, combat_handler=combat_handler)
+        state = combat_handler.get_current_state(creature, enemy)
         best_action = self.get_best_action(state)
 
         # Obtain action via e-greedy policy
-        action = self.policy.sample_action(actions, best_action, t)
+        action = self.policy.sample_policy_action(actions, best_action, self.t)
+        # print("Best action:{}, {})".format(best_action.name, self.policy.get_epsilon(self.t)))
+        self.t += 1
 
         return action
 
-    def determine_reward(self, enemy):
+    def determine_reward(self, creature, enemy):
         reward = 0
         if enemy.is_alive() is False:
             reward = 10
+        elif creature.is_alive() is False:
+            reward = -10
         return reward
 
-    def train(self, creature, combat_handler):
-        self.initialize_q(creature)
-        for t in range(self.max_training_steps):
-            # Sample an action a given s
-            action = self.sample_action(t)
+    def update_step(self, action, creature, current_state, next_state, combat_handler):
+        assert action in creature.actions
 
-            # Perform action, obtain s', r
-            enemy = self.determine_enemy(creature)
-            current_state = self.obtain_current_state(creature)
-            self.take_action(creature, action, enemy, combat_handler)
-            next_state = self.obtain_current_state(creature)
-            reward = self.determine_reward(enemy)
+        # Perform action, obtain s', r
+        enemy = self.determine_enemy(creature, combat_handler)
+        reward = self.determine_reward(creature, enemy)
 
-            # Perform update:
-            self.Q[current_state] += self.alpha * (
-                        reward + self.gamma * np.max(self.Q[next_state]) - self.Q[current_state])
+        # Perform update:
+        action_index = self.action_to_index[action]
+        self.Q[current_state][action_index] += self.alpha * (
+                    reward + self.gamma * np.max(self.Q[next_state]) - self.Q[current_state][action_index]
+        )
 
     def take_action(self, creature, action, enemy, combat_handler):
         """

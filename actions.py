@@ -120,6 +120,7 @@ class MoveLeft(Move):
         super().__init__(*args, **kwargs)
         self.coord_index = 0
         self.sign = -1
+        self.name = "move_left"
 
 
 class MoveRight(Move):
@@ -127,6 +128,7 @@ class MoveRight(Move):
         super().__init__(*args, **kwargs)
         self.coord_index = 0
         self.sign = 1
+        self.name = "move_right"
 
 
 class MoveUp(Move):
@@ -134,6 +136,7 @@ class MoveUp(Move):
         super().__init__(*args, **kwargs)
         self.coord_index = 1
         self.sign = 1
+        self.name = "move_up"
 
 
 class MoveDown(Move):
@@ -141,11 +144,13 @@ class MoveDown(Move):
         super().__init__(*args, **kwargs)
         self.coord_index = 1
         self.sign = -1
+        self.name = "move_down"
 
 
 class EndTurn(Action):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.name = "end_turn"
 
     def use(self, source_creature, **kwargs):
         meta_attributes = None
@@ -153,6 +158,6 @@ class EndTurn(Action):
 
 
 # Todo: Move into DB
-vampire_bite = Attack(hit_bonus=10, damage_bonus=10, num_damage_dice=2, damage_dice=10, range=5, name="Vampire Bite")
+vampire_bite = Attack(hit_bonus=10, damage_bonus=10, num_damage_dice=3, damage_dice=12, range=5, name="Vampire Bite")
 sword_slash = Attack(hit_bonus=5, damage_bonus=3, num_damage_dice=1, damage_dice=12, range=5, name="Sword Slash")
 arrow_shot = Attack(hit_bonus=5, damage_bonus=3, num_damage_dice=1, damage_dice=12, range=60, name="Arrow Shot")

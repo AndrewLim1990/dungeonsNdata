@@ -1,7 +1,9 @@
+import numpy as np
 import time
 
-from utils.dnd_utils import draw_location
 from actions import Attack
+from actions import EndTurn
+from utils.dnd_utils import draw_location
 
 
 class CombatHandler:
@@ -21,6 +23,7 @@ class CombatHandler:
         self.combat_is_over = False
         self.console = console
         self.first_visualization = True
+        self.current_turn = None
 
     def add_combatant(self, combatant):
         self.combatants.append(combatant)
@@ -34,6 +37,7 @@ class CombatHandler:
     def initialize_combat(self):
         self.combat_is_over = False
         self.roll_combat_initiative()
+        self.current_turn = self.turn_order[0][0]
 
     def roll_combat_initiative(self):
         """
@@ -42,8 +46,6 @@ class CombatHandler:
         for combatant in self.combatants:
             self.turn_order.append([combatant, combatant.roll_initiative()])
         self.turn_order = sorted(self.turn_order, key=lambda x: x[1], reverse=True)
-
-        # print("Turn order: {}".format([(c.name, initiative) for c, initiative in self.turn_order]))
 
     def reset_combat_round_resources(self):
         for combatant in self.combatants:
@@ -142,6 +144,34 @@ class CombatHandler:
             char=str(final_damage_report)
         )
 
+    def let_combatants_update(self, action, current_state, next_state, combat_handler):
+        """
+        :return:
+        """
+        players = [combatant.player for combatant in self.combatants]
+        players = list(set(players))
+        for player in players:
+            print("---> Player name: {}".format(player.name))
+            for creature in player.get_creatures(combat_handler=self):
+                player.strategy.update_step(
+                    action,
+                    creature=creature,
+                    current_state=current_state,
+                    next_state=next_state,
+                    combat_handler=combat_handler
+                )
+
+    def get_current_state(self, creature, enemy):
+        current_state = (
+            creature.location[0],  # creature x loc
+            creature.location[1],  # creature y loc
+            creature.is_alive,  # creature is alive?
+            enemy.location[0],  # enemy x loc
+            enemy.location[1],  # enemy y loc
+            enemy.is_alive  # enemy is alive?
+        )
+        return current_state
+
     def run(self):
         """
         Runs Combat
@@ -149,16 +179,40 @@ class CombatHandler:
         self.initialize_combat()
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
-                starting_location = combatant.location
-                _, meta_data_list = combatant.player.take_action(creature=combatant, combat_handler=self)
+                while True:
+                    # Poll for action to use
+                    action = combatant.player.strategy.sample_action(
+                        creature=combatant,
+                        combat_handler=self
+                    )
 
-                # Visualize movement
-                if self.console:
-                    self.visualize(creature=combatant, old_location=starting_location)
-                    self.report_combat(meta_data_list)
+                    # Perform action (update state, update combat handler)
+                    enemy = combatant.player.strategy.determine_enemy(combatant, combat_handler=self)
+                    current_state = self.get_current_state(creature=combatant, enemy=enemy)
+                    combatant.use_action(
+                        action,
+                        combat_handler=self,
+                        target_creature=combatant.sample_enemy(combat_handler=self)
+                    )
+                    next_state = self.get_current_state(creature=combatant, enemy=enemy)
+
+                    # Allow combatants to change strategy
+                    combatant.player.strategy.update_step(
+                        action,
+                        creature=combatant,
+                        current_state=current_state,
+                        next_state=next_state,
+                        combat_handler=self
+                    )
+                    if type(action) == EndTurn:
+                        break
 
             self.end_of_round_cleanup()
             if self.check_if_combat_is_over():
                 break
 
+        remaining_combatants = [creature.name for creature in self.combatants]
+        assert len(remaining_combatants) == 1
 
+        winner = remaining_combatants[0]
+        return winner
