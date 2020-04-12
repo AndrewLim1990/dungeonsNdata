@@ -38,6 +38,7 @@ class CombatHandler:
         self.combat_is_over = False
         self.roll_combat_initiative()
         self.current_turn = self.turn_order[0][0]
+        self.full_heal_combatants()
 
     def roll_combat_initiative(self):
         """
@@ -174,6 +175,13 @@ class CombatHandler:
             enemy.is_alive  # enemy is alive?
         )
         return current_state
+
+    def full_heal_combatants(self):
+        """
+        Fully heals all combatants
+        :return: None
+        """
+        [combatant.full_heal() for combatant in self.combatants]
 
     def run(self):
         """

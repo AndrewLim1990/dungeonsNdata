@@ -32,8 +32,6 @@ def main():
     # Attempt
     try:
         for i in range(n_iters):
-            leotris.full_heal()
-            vampire.full_heal()
             combat_handler = CombatHandler(
                 environment=square_room,
                 combatants=[leotris, vampire],
