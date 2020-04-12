@@ -94,6 +94,16 @@ class Creature:
     def full_heal(self):
         self.hit_points = self.max_hit_points
 
+    def get_action(self, name):
+        """
+        :param name:
+        :return:
+        """
+        matching_actions = [action for action in self.actions if action.name == name]
+        assert len(matching_actions) == 1, "Exactly 1 action must match the given action name"
+        matching_action = matching_actions[0]
+        return matching_action
+
 
 # Todo: Move into DB
 vampire = Creature(
