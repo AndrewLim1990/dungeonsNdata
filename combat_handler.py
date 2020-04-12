@@ -144,21 +144,24 @@ class CombatHandler:
             char=str(final_damage_report)
         )
 
-    def let_combatants_update(self, action, current_state, next_state, combat_handler):
+    def let_combatants_update(self, action, current_state, next_state):
         """
         :return:
         """
         players = [combatant.player for combatant in self.combatants]
         players = list(set(players))
         for player in players:
-            print("---> Player name: {}".format(player.name))
             for creature in player.get_creatures(combat_handler=self):
+                # If not your turn, you can still learn:
+                if action not in creature.actions:
+                    action = creature.get_action("end_turn")
+
                 player.strategy.update_step(
                     action,
                     creature=creature,
                     current_state=current_state,
                     next_state=next_state,
-                    combat_handler=combat_handler
+                    combat_handler=self
                 )
 
     def get_current_state(self, creature, enemy):
@@ -197,13 +200,7 @@ class CombatHandler:
                     next_state = self.get_current_state(creature=combatant, enemy=enemy)
 
                     # Allow combatants to change strategy
-                    combatant.player.strategy.update_step(
-                        action,
-                        creature=combatant,
-                        current_state=current_state,
-                        next_state=next_state,
-                        combat_handler=self
-                    )
+                    self.let_combatants_update(action, current_state=current_state, next_state=next_state)
                     if type(action) == EndTurn:
                         break
 
