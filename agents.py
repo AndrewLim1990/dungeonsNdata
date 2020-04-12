@@ -18,6 +18,13 @@ class TabularAgent(Agent):
 class QLearningTabularAgent(TabularAgent):
     def __init__(self, max_training_steps=2e7, epsilon_start=0.75, epsilon_end=0.005, alpha=1e-3,
                  gamma=0.95):
+        """
+        :param max_training_steps:
+        :param epsilon_start:
+        :param epsilon_end:
+        :param alpha:
+        :param gamma:
+        """
         super().__init__()
         self.max_training_steps = int(max_training_steps)
         self.policy = EGreedyPolicy(n_steps=max_training_steps, epsilon_start=epsilon_start, epsilon_end=epsilon_end)
@@ -29,6 +36,10 @@ class QLearningTabularAgent(TabularAgent):
         self.t = 0
 
     def initialize_q(self, creature):
+        """
+        :param creature:
+        :return:
+        """
         num_actions = len(creature.actions)
         self.Q = defaultdict(lambda: np.zeros(num_actions))
         self.action_to_index = {k: v for k, v in zip(creature.actions, range(num_actions))}
@@ -74,6 +85,11 @@ class QLearningTabularAgent(TabularAgent):
         return current_state
 
     def sample_action(self, creature, combat_handler):
+        """
+        :param creature:
+        :param combat_handler:
+        :return: action
+        """
         actions = creature.actions
         enemy = creature.player.strategy.determine_enemy(creature, combat_handler=combat_handler)
         state = combat_handler.get_current_state(creature, enemy)
@@ -81,12 +97,17 @@ class QLearningTabularAgent(TabularAgent):
 
         # Obtain action via e-greedy policy
         action = self.policy.sample_policy_action(actions, best_action, self.t)
-        # print("Best action:{}, {})".format(best_action.name, self.policy.get_epsilon(self.t)))
+
         self.t += 1
 
         return action
 
     def determine_reward(self, creature, enemy):
+        """
+        :param creature:
+        :param enemy:
+        :return:
+        """
         reward = -0.01
         if enemy.is_alive() is False:
             reward = 100
@@ -95,6 +116,14 @@ class QLearningTabularAgent(TabularAgent):
         return reward
 
     def update_step(self, action, creature, current_state, next_state, combat_handler):
+        """
+        :param action:
+        :param creature:
+        :param current_state:
+        :param next_state:
+        :param combat_handler:
+        :return:
+        """
         assert action in creature.actions
 
         # Perform action, obtain s', r
@@ -109,7 +138,11 @@ class QLearningTabularAgent(TabularAgent):
 
     def take_action(self, creature, action, enemy, combat_handler):
         """
-        :return: action
+        :param creature:
+        :param action:
+        :param enemy:
+        :param combat_handler:
+        :return:
         """
         meta_data_list = list()
 
