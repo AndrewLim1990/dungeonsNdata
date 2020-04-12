@@ -87,11 +87,11 @@ class QLearningTabularAgent(TabularAgent):
         return action
 
     def determine_reward(self, creature, enemy):
-        reward = 0
+        reward = -0.01
         if enemy.is_alive() is False:
-            reward = 10
+            reward = 100
         elif creature.is_alive() is False:
-            reward = -10
+            reward = -100
         return reward
 
     def update_step(self, action, creature, current_state, next_state, combat_handler):
