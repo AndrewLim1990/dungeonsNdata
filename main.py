@@ -10,11 +10,20 @@ import traceback
 import dill
 
 
+def report_win_percentages(winner_list, num_games, combatants):
+    """
+    :return: None
+    """
+    win_percentages = calc_win_percentage(winner_list[-num_games:], combatants)
+    print("Win percentages: {}".format(win_percentages))
+
+
 def main():
     """
     Todo: Provide main documentation/overview
     """
     n_iters = int(1e6)
+    combatants = [leotris, vampire]
     # Might need move this:
     #   Initialize Q so that you can persist across different runs/episodes
     leotris.player.strategy.initialize_q(leotris)
@@ -34,16 +43,14 @@ def main():
         for i in range(n_iters):
             combat_handler = CombatHandler(
                 environment=square_room,
-                combatants=[leotris, vampire],
+                combatants=combatants,
                 console=console
             )
             winner = combat_handler.run()
             winner_list.append(winner)
 
             if (i + 1) % 10 == 0:
-                win_percentages = calc_win_percentage(winner_list[-10:], [leotris, vampire])
-                exploration = leotris.player.strategy.policy.get_epsilon(leotris.player.strategy.t)
-                print("Win percentages: {} ({})".format(win_percentages, exploration))
+                report_win_percentages(winner_list=winner_list, num_games=10, comatants=combatants)
 
             # Save tabular Q
             if (i + 1) % 100 == 0:
