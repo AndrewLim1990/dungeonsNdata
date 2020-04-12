@@ -7,6 +7,7 @@ from utils.agent_utils import calc_win_percentage
 import curses
 import sys
 import traceback
+import dill
 
 
 def main():
@@ -40,11 +41,16 @@ def main():
             )
             winner = combat_handler.run()
             winner_list.append(winner)
+
             if (i + 1) % 10 == 0:
-                win_percentages = calc_win_percentage(winner_list, [leotris, vampire])
+                win_percentages = calc_win_percentage(winner_list[-10:], [leotris, vampire])
                 exploration = leotris.player.strategy.policy.get_epsilon(leotris.player.strategy.t)
                 print("Win percentages: {} ({})".format(win_percentages, exploration))
-                winner_list = []
+
+            # Save tabular Q
+            if (i + 1) % 100 == 0:
+                dill.dump(leotris, open("results/leotris_Q_tabular.pickle", "wb"))
+                dill.dump(winner_list, open("results/winner_list_Q_tabular.pickle", "wb"))
 
     except Exception as e:
         print(e)
