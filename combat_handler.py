@@ -16,12 +16,11 @@ class CombatHandler:
             * Action
             * Bonus Action
     """
-    def __init__(self, environment, console, combatants=[]):
+    def __init__(self, environment, combatants=[]):
         self.environment = environment
         self.combatants = combatants
         self.turn_order = list()
         self.combat_is_over = False
-        self.console = console
         self.first_visualization = True
         self.current_turn = None
 
@@ -81,32 +80,6 @@ class CombatHandler:
             if (target_location == creature.location).all():
                 is_legal = False
         return is_legal
-
-    def visualize(self, creature, old_location):
-        """
-        Visualizes state of battlefield
-        """
-        if self.first_visualization:
-            self.environment.draw_board(self.console)
-            self.first_visualization = False
-
-        # Clear old location
-        draw_location(
-            self.console,
-            x=int(old_location[0] / 5),
-            y=int(old_location[1] / 5),
-            char=" "
-        )
-
-        # Draw new location
-        draw_location(
-            self.console,
-            x=int(creature.location[0] / 5),
-            y=int(creature.location[1] / 5),
-            char=creature.symbol
-        )
-
-        time.sleep(0.25)
 
     def report_combat(self, meta_data_list):
         """
