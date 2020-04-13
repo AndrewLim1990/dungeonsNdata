@@ -93,7 +93,7 @@ class RandomStrategy(Strategy):
     def update_step(self, *args, **kwargs):
         pass
 
-    def initialize_q(self, *args, **kwargs):
+    def initialize(self, * args, **kwargs):
         pass
 
 
