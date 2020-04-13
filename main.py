@@ -18,51 +18,39 @@ def report_win_percentages(winner_list, num_games, combatants):
     print("Win percentages: {}".format(win_percentages))
 
 
+def intialize_combatants(combatants):
+    """
+    :param combatants:
+    :return:
+    """
+    [combatant.initialize() for combatant in combatants]
+
+
 def main():
     """
     Todo: Provide main documentation/overview
     """
     n_iters = int(1e6)
     combatants = [leotris, vampire]
-    # Might need move this:
-    #   Initialize Q so that you can persist across different runs/episodes
-    leotris.player.strategy.initialize_q(leotris)
-    vampire.player.strategy.initialize_q(vampire)
+    intialize_combatants(combatants)
 
     winner_list = []
 
-    # Try to obtain console for visualization
-    try:
-        console = curses.initscr()
-    except Exception as e:
-        print(e)
-        console = None
+    for i in range(n_iters):
+        combat_handler = CombatHandler(
+            environment=square_room,
+            combatants=combatants
+        )
+        winner = combat_handler.run()
+        winner_list.append(winner)
 
-    # Attempt
-    try:
-        for i in range(n_iters):
-            combat_handler = CombatHandler(
-                environment=square_room,
-                combatants=combatants,
-                console=console
-            )
-            winner = combat_handler.run()
-            winner_list.append(winner)
+        if (i + 1) % 10 == 0:
+            report_win_percentages(winner_list=winner_list, num_games=10, comatants=combatants)
 
-            if (i + 1) % 10 == 0:
-                report_win_percentages(winner_list=winner_list, num_games=10, comatants=combatants)
-
-            # Save tabular Q
-            if (i + 1) % 100 == 0:
-                dill.dump(leotris, open("results/leotris_Q_tabular.pickle", "wb"))
-                dill.dump(winner_list, open("results/winner_list_Q_tabular.pickle", "wb"))
-
-    except Exception as e:
-        print(e)
-        traceback.print_exc(file=sys.stdout)
-
-    if console:
-        curses.endwin()
+        # Save tabular Q
+        if (i + 1) % 100 == 0:
+            dill.dump(leotris, open("results/leotris_Q_tabular.pickle", "wb"))
+            dill.dump(winner_list, open("results/winner_list_Q_tabular.pickle", "wb"))
 
 
 if __name__ == "__main__":
