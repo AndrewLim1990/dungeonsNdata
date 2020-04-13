@@ -45,6 +45,13 @@ class QLearningTabularAgent(TabularAgent):
         self.action_to_index = {k: v for k, v in zip(creature.actions, range(num_actions))}
         self.index_to_action = {v: k for k, v in self.action_to_index.items()}
 
+    def initialize(self, creature):
+        """
+        :param creature:
+        :return:
+        """
+        self.initialize_q(creature)
+
     def determine_enemy(self, creature, combat_handler):
         """
         :param creature:
