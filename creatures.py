@@ -104,6 +104,9 @@ class Creature:
         matching_action = matching_actions[0]
         return matching_action
 
+    def initialize(self):
+        self.player.strategy.initialize(creature=self)
+
 
 # Todo: Move into DB
 vampire = Creature(
