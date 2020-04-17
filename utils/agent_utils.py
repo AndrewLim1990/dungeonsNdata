@@ -55,10 +55,8 @@ def calc_win_percentage(winner_list, creatures):
     return win_percentages
 
 
-# def average_action_q(Q):
-#     states = Q.keys()
-#     tracker = defaultdict(list)
-#     for state in states:
-#         actions = Q[state].keys()
-#         for action in actions:
-#             tracker[action].append(Q[state][action])
+def classlookup(cls):
+    c = list(cls.__bases__)
+    for base in c:
+        c.extend(classlookup(base))
+    return c

@@ -1,9 +1,10 @@
+from actions import Attack
+from actions import Move
 from collections import defaultdict
+from utils. agent_utils import classlookup
+from utils.agent_utils import EGreedyPolicy
 
 import numpy as np
-
-from settings import SUCCESSFUL_PLAYER_TURN_SIGNAL
-from utils.agent_utils import EGreedyPolicy
 
 
 class Agent:
@@ -16,8 +17,8 @@ class TabularAgent(Agent):
 
 
 class QLearningTabularAgent(TabularAgent):
-    def __init__(self, max_training_steps=2e7, epsilon_start=0.75, epsilon_end=0.005, alpha=1e-3,
-                 gamma=0.95):
+    def __init__(self, max_training_steps=2e7, epsilon_start=0.01, epsilon_end=0.0005, alpha=1e-1,
+                 gamma=0.999):
         """
         :param max_training_steps:
         :param epsilon_start:
@@ -34,6 +35,8 @@ class QLearningTabularAgent(TabularAgent):
         self.action_to_index = None
         self.index_to_action = None
         self.t = 0
+        self.last_action = None
+        self.incoming_reward = None
 
     def initialize_q(self, creature):
         """
@@ -65,13 +68,25 @@ class QLearningTabularAgent(TabularAgent):
                 enemy = combatant
         return enemy
 
-    def get_best_action(self, state):
+    def get_best_action(self, creature, state):
         """
         :param state:
+        :param creature:
         :return:
         """
-        best_action_index = np.argmax(self.Q[state])
-        best_action = self.index_to_action[best_action_index]
+        # Get list of actions ordered by bestness
+        best_action_indicies = np.argsort(-self.Q[state])
+        saved_action = self.index_to_action[best_action_indicies[0]]
+        best_actions = [self.index_to_action[idx] for idx in best_action_indicies]
+
+        # Filter out illegal actions
+        best_actions = self.filter_illegal_actions(creature, best_actions)
+
+        # Take best action amongst remaining actions
+        best_action = best_actions[0]
+
+        # print("Actual best action: {}, Taken best action: {}".format(saved_action.name, best_action.name))
+
         return best_action
 
     def obtain_current_state(self, creature, combat_handler):
@@ -84,12 +99,28 @@ class QLearningTabularAgent(TabularAgent):
         current_state = (
             creature.location[0],  # creature x loc
             creature.location[1],  # creature y loc
-            creature.is_alive,  # creature is alive?
             enemy.location[0],  # enemy x loc
             enemy.location[1],  # enemy y loc
-            enemy.is_alive  # enemy is alive?
         )
         return current_state
+
+    def filter_illegal_actions(self, creature, actions):
+        """
+        :param creature:
+        :param actions:
+        :return:
+        """
+        # Filter out illegal moves
+        has_movement = creature.movement_remaining > 0
+        if not has_movement:
+            actions = [action for action in actions if Move not in classlookup(type(action)) + [type(action)]]
+
+        # Filter out illegal attacks
+        has_attack = creature.attacks_used < creature.attacks_allowed
+        if not has_attack:
+            actions = [action for action in actions if Attack not in classlookup(type(action)) + [type(action)]]
+
+        return actions
 
     def sample_action(self, creature, combat_handler):
         """
@@ -98,15 +129,16 @@ class QLearningTabularAgent(TabularAgent):
         :return: action
         """
         actions = creature.actions
+        actions = self.filter_illegal_actions(creature, actions)
         enemy = creature.player.strategy.determine_enemy(creature, combat_handler=combat_handler)
         state = combat_handler.get_current_state(creature, enemy)
-        best_action = self.get_best_action(state)
+        best_action = self.get_best_action(creature, state)
 
         # Obtain action via e-greedy policy
         action = self.policy.sample_policy_action(actions, best_action, self.t)
 
         self.t += 1
-
+        # print("----> Action: {} ({})".format(action.name, self.action_to_index[action]))
         return action
 
     def determine_reward(self, creature, enemy):
@@ -115,7 +147,7 @@ class QLearningTabularAgent(TabularAgent):
         :param enemy:
         :return:
         """
-        reward = -0.01
+        reward = -0.0001
         if enemy.is_alive() is False:
             reward = 100
         elif creature.is_alive() is False:
@@ -131,36 +163,21 @@ class QLearningTabularAgent(TabularAgent):
         :param combat_handler:
         :return:
         """
-        assert action in creature.actions
-
         # Perform action, obtain s', r
         enemy = self.determine_enemy(creature, combat_handler)
         reward = self.determine_reward(creature, enemy)
+        # print("REWARD: {}".format(reward))
 
         # Perform update:
         action_index = self.action_to_index[action]
-        self.Q[current_state][action_index] += self.alpha * (
-                    reward + self.gamma * np.max(self.Q[next_state]) - self.Q[current_state][action_index]
-        )
+        diff = reward + self.gamma * np.max(self.Q[next_state]) - self.Q[current_state][action_index]
+        # print("Diff: {}".format(diff))
+        # print("BEFORE: {}: {}".format(current_state, self.Q[current_state]))
+        self.Q[current_state][action_index] += self.alpha * diff
+        # print("AFTER: {}: {}".format(current_state, self.Q[current_state]))
+        # print("NEXT: {}: {}\n".format(next_state, self.Q[next_state]))
+        return
 
-    def take_action(self, creature, action, enemy, combat_handler):
-        """
-        :param creature:
-        :param action:
-        :param enemy:
-        :param combat_handler:
-        :return:
-        """
-        meta_data_list = list()
 
-        starting_location = creature.location
-        action_signal, meta_data = creature.use_action(
-            action,
-            combat_handler=combat_handler,
-            target_creature=enemy
-        )
-        meta_data_list.append(meta_data)
-        meta_data = {"starting_location": starting_location}
-        meta_data_list.append(meta_data)
-
-        return SUCCESSFUL_PLAYER_TURN_SIGNAL, meta_data_list
+class DQN:
+    pass

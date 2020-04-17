@@ -53,6 +53,7 @@ class RandomStrategy(Strategy):
 
     def sample_action(self, creature, combat_handler):
         action = np.random.choice(creature.actions)
+        # print("----> Action: {}".format(action.name))
         return action
 
     def determine_enemy(self, creature, combat_handler):

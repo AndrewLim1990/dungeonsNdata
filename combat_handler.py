@@ -64,8 +64,8 @@ class CombatHandler:
         self.remove_dead_combatants()
 
     def check_if_combat_is_over(self):
-        num_combatants = len(self.combatants)
-        self.combat_is_over = num_combatants <= 1
+        num_live_combatants = len([creature for creature in self.combatants if creature.hit_points > 0 ])
+        self.combat_is_over = num_live_combatants <= 1
         if self.combat_is_over:
             return True
         else:
@@ -118,7 +118,7 @@ class CombatHandler:
             char=str(final_damage_report)
         )
 
-    def let_combatants_update(self, action, current_state, next_state):
+    def let_combatants_update(self, combatant, input_action, current_state, next_state):
         """
         :return:
         """
@@ -127,8 +127,10 @@ class CombatHandler:
         for player in players:
             for creature in player.get_creatures(combat_handler=self):
                 # If not your turn, you can still learn:
-                if action not in creature.actions:
+                if combatant != creature:
                     action = creature.get_action("end_turn")
+                else:
+                    action = input_action
 
                 player.strategy.update_step(
                     action,
@@ -142,10 +144,13 @@ class CombatHandler:
         current_state = (
             creature.location[0],  # creature x loc
             creature.location[1],  # creature y loc
-            creature.is_alive,  # creature is alive?
+            creature.attacks_used < creature.attacks_allowed,  # can attack
+            creature.movement_remaining > 0,  # can move
+            # creature.is_alive(),  # creature is alive?
             enemy.location[0],  # enemy x loc
             enemy.location[1],  # enemy y loc
-            enemy.is_alive  # enemy is alive?
+            enemy.hit_points,  # enemy health
+            # enemy.is_alive()  # enemy is alive?
         )
         return current_state
 
@@ -161,8 +166,11 @@ class CombatHandler:
         Runs Combat
         """
         self.initialize_combat()
+        end_now = False
+        # print("---------------------------- NEW ROUND ----------------------------")
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
+                # print("--------------------> Turn: {}".format(combatant.name))
                 while True:
                     # Poll for action to use
                     action = combatant.player.strategy.sample_action(
@@ -181,13 +189,38 @@ class CombatHandler:
                     next_state = self.get_current_state(creature=combatant, enemy=enemy)
 
                     # Allow combatants to change strategy
-                    self.let_combatants_update(action, current_state=current_state, next_state=next_state)
+                    # self.let_combatants_update(combatant, action, current_state=current_state, next_state=next_state)
+                    combatant.player.strategy.update_step(
+                        action,
+                        creature=combatant,
+                        current_state=current_state,
+                        next_state=next_state,
+                        combat_handler=self
+                    )
+                    if self.check_if_combat_is_over():
+                        # Let loser adjust
+                        loser = [creature for creature in self.combatants if creature.hit_points <= 0][0]
+                        winner = [creature for creature in self.combatants if creature.hit_points > 0][0]
+                        current_state = self.get_current_state(creature=loser, enemy=winner)
+                        if winner.name == "Leotris":
+                            pass
+                        # print(winner.name)
+                        loser.player.strategy.update_step(
+                            loser.get_action("end_turn"),
+                            creature=loser,
+                            current_state=current_state,
+                            next_state=next_state,
+                            combat_handler=self
+                        )
+                        end_now = True
+                        break
                     if type(action) == EndTurn:
                         break
+                if end_now:
+                    end_now = False
+                    break
 
             self.end_of_round_cleanup()
-            if self.check_if_combat_is_over():
-                break
 
         remaining_combatants = [creature.name for creature in self.combatants]
         assert len(remaining_combatants) == 1
