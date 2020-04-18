@@ -1,5 +1,5 @@
 from utils.agent_utils import filter_illegal_actions
-
+from agents import QLearningTabularAgent
 import numpy as np
 
 
@@ -42,6 +42,7 @@ class PlayerCharacter(Player):
 class RandomStrategy(Strategy):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.name = "random"
 
     def sample_action(self, creature, combat_handler):
         actions = filter_illegal_actions(creature=creature, actions=creature.actions)
@@ -63,6 +64,6 @@ class RandomStrategy(Strategy):
         pass
 
 
-# hayden = PlayerCharacter(strategy=QLearningTabularAgent(), name="Hayden")
-hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
+hayden = PlayerCharacter(strategy=QLearningTabularAgent(), name="Hayden")
+# hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
 dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")

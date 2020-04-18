@@ -48,7 +48,7 @@ def main():
 
         # Save tabular Q
         if (i + 1) % 100 == 0:
-            dill.dump(winner_list, open("results/winner_list_random.pickle", "wb"))
+            dill.dump(winner_list, open("results/winner_list_{}.pickle".format(leotris.player.strategy.name), "wb"))
 
 
 if __name__ == "__main__":

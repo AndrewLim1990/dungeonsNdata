@@ -15,7 +15,7 @@ class TabularAgent(Agent):
 
 
 class QLearningTabularAgent(TabularAgent):
-    def __init__(self, max_training_steps=2e7, epsilon_start=0.01, epsilon_end=0.0005, alpha=1e-1,
+    def __init__(self, max_training_steps=2e7, epsilon_start=0.20, epsilon_end=0.0005, alpha=1e-1,
                  gamma=0.999):
         """
         :param max_training_steps:
@@ -35,6 +35,7 @@ class QLearningTabularAgent(TabularAgent):
         self.t = 0
         self.last_action = None
         self.incoming_reward = None
+        self.name = "q_tabular"
 
     def initialize_q(self, creature):
         """
