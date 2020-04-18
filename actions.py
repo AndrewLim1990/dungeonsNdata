@@ -8,8 +8,6 @@ from settings import MISSED_ATTACK_SIGNAL
 from utils.dnd_utils import roll_dice
 from utils.dnd_utils import calculate_distance
 
-import numpy as np
-
 
 class Action:
     """
@@ -70,7 +68,8 @@ class Attack(Action):
         }
 
         if hit_roll >= target_creature.armor_class:
-            damage = self.damage_dice / 2  # np.sum([roll_dice(self.damage_dice) for _ in range(self.num_damage_dice)])
+            damage = self.damage_dice * self.num_damage_dice / 2
+            # damage = np.sum([roll_dice(self.damage_dice) for _ in range(self.num_damage_dice)])
             target_creature.hit_points -= damage
             meta_data.update({"damage": damage})
             return SUCCESSFUL_ATTACK_SIGNAL, meta_data

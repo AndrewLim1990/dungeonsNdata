@@ -1,6 +1,4 @@
-from agents import QLearningTabularAgent
-from settings import END_TURN_SIGNAL
-from settings import SUCCESSFUL_PLAYER_TURN_SIGNAL
+from utils.agent_utils import filter_illegal_actions
 
 import numpy as np
 
@@ -35,12 +33,6 @@ class Player:
     def add_creature(self, creature):
         self.creatures.append(creature)
 
-    def take_action(self, creature, combat_handler):
-        """
-        Todo: Fill in method documentation
-        """
-        return self.strategy.take_action(creature, combat_handler)
-
 
 class PlayerCharacter(Player):
     def __init__(self, *args, **kwargs):
@@ -52,8 +44,8 @@ class RandomStrategy(Strategy):
         super().__init__(*args, **kwargs)
 
     def sample_action(self, creature, combat_handler):
-        action = np.random.choice(creature.actions)
-        # print("----> Action: {}".format(action.name))
+        actions = filter_illegal_actions(creature=creature, actions=creature.actions)
+        action = np.random.choice(actions)
         return action
 
     def determine_enemy(self, creature, combat_handler):
@@ -64,33 +56,6 @@ class RandomStrategy(Strategy):
                 enemy = combatant
         return enemy
 
-    def take_action(self, creature, combat_handler):
-        """
-        Takes random action for the given creature
-
-        Args:
-            creature: Creature who's turn it is
-            combat_handler: Contains environment, turn order, combatants, etc
-        """
-        creature_array = np.array(combat_handler.combatants)
-        is_not_self = creature_array != creature
-        target_creature = creature_array[is_not_self][0]
-        meta_data_list = list()
-
-        while True:
-            starting_location = creature.location
-            action_signal, meta_data = creature.use_action(
-                np.random.choice(creature.actions),
-                combat_handler=combat_handler,
-                target_creature=target_creature
-            )
-            meta_data_list.append(meta_data)
-
-            if action_signal == END_TURN_SIGNAL:
-                meta_data = {"starting_location": starting_location}
-                meta_data_list.append(meta_data)
-                return SUCCESSFUL_PLAYER_TURN_SIGNAL, meta_data_list
-
     def update_step(self, *args, **kwargs):
         pass
 
@@ -98,6 +63,6 @@ class RandomStrategy(Strategy):
         pass
 
 
-hayden = PlayerCharacter(strategy=QLearningTabularAgent(), name="Hayden")
-# hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
+# hayden = PlayerCharacter(strategy=QLearningTabularAgent(), name="Hayden")
+hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
 dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")

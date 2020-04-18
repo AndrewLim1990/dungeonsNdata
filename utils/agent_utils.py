@@ -1,5 +1,8 @@
-import numpy as np
+from actions import Attack
+from actions import Move
 from collections import Counter
+
+import numpy as np
 
 
 class EGreedyPolicy:
@@ -60,3 +63,22 @@ def classlookup(cls):
     for base in c:
         c.extend(classlookup(base))
     return c
+
+
+def filter_illegal_actions(creature, actions):
+    """
+    :param creature:
+    :param actions:
+    :return actions:
+    """
+    # Filter out illegal moves
+    has_movement = creature.movement_remaining > 0
+    if not has_movement:
+        actions = [action for action in actions if Move not in classlookup(type(action)) + [type(action)]]
+
+    # Filter out illegal attacks
+    has_attack = creature.attacks_used < creature.attacks_allowed
+    if not has_attack:
+        actions = [action for action in actions if Attack not in classlookup(type(action)) + [type(action)]]
+
+    return actions

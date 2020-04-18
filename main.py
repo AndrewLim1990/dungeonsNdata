@@ -7,15 +7,15 @@ from utils.agent_utils import calc_win_percentage
 import dill
 import numpy as np
 
+np.set_printoptions(precision=1)
 
 def report_win_percentages(winner_list, num_games, combatants):
     """
     :return: None
     """
     win_percentages = calc_win_percentage(winner_list[-num_games:], combatants)
-    print("Win percentages: {} ({})".format(
+    print("Win percentages: {}".format(
         win_percentages,
-        leotris.player.strategy.policy.get_epsilon(leotris.player.strategy.t)
     ))
 
 
@@ -25,8 +25,6 @@ def intialize_combatants(combatants):
     :return:
     """
     [combatant.initialize() for combatant in combatants]
-
-np.set_printoptions(precision=1)
 
 def main():
     """
@@ -44,16 +42,13 @@ def main():
         )
         winner = combat_handler.run()
         winner_list.append(winner)
-        if winner == "Leotris":
-            pass
 
         if (i + 1) % 10 == 0:
             report_win_percentages(winner_list=winner_list, num_games=10, combatants=[leotris, vampire])
 
         # Save tabular Q
         if (i + 1) % 100 == 0:
-            # dill.dump(leotris, open("results/leotris_Q_tabular.pickle", "wb"))
-            dill.dump(winner_list, open("results/winner_list_Q_tabular.pickle", "wb"))
+            dill.dump(winner_list, open("results/winner_list_random.pickle", "wb"))
 
 
 if __name__ == "__main__":

@@ -1,8 +1,6 @@
-from actions import Attack
-from actions import Move
 from collections import defaultdict
-from utils. agent_utils import classlookup
 from utils.agent_utils import EGreedyPolicy
+from utils.agent_utils import filter_illegal_actions
 
 import numpy as np
 
@@ -80,7 +78,7 @@ class QLearningTabularAgent(TabularAgent):
         best_actions = [self.index_to_action[idx] for idx in best_action_indicies]
 
         # Filter out illegal actions
-        best_actions = self.filter_illegal_actions(creature, best_actions)
+        best_actions = filter_illegal_actions(creature, best_actions)
 
         # Take best action amongst remaining actions
         best_action = best_actions[0]
@@ -104,23 +102,6 @@ class QLearningTabularAgent(TabularAgent):
         )
         return current_state
 
-    def filter_illegal_actions(self, creature, actions):
-        """
-        :param creature:
-        :param actions:
-        :return:
-        """
-        # Filter out illegal moves
-        has_movement = creature.movement_remaining > 0
-        if not has_movement:
-            actions = [action for action in actions if Move not in classlookup(type(action)) + [type(action)]]
-
-        # Filter out illegal attacks
-        has_attack = creature.attacks_used < creature.attacks_allowed
-        if not has_attack:
-            actions = [action for action in actions if Attack not in classlookup(type(action)) + [type(action)]]
-
-        return actions
 
     def sample_action(self, creature, combat_handler):
         """
@@ -129,7 +110,7 @@ class QLearningTabularAgent(TabularAgent):
         :return: action
         """
         actions = creature.actions
-        actions = self.filter_illegal_actions(creature, actions)
+        actions = filter_illegal_actions(creature, actions)
         enemy = creature.player.strategy.determine_enemy(creature, combat_handler=combat_handler)
         state = combat_handler.get_current_state(creature, enemy)
         best_action = self.get_best_action(creature, state)
@@ -138,7 +119,6 @@ class QLearningTabularAgent(TabularAgent):
         action = self.policy.sample_policy_action(actions, best_action, self.t)
 
         self.t += 1
-        # print("----> Action: {} ({})".format(action.name, self.action_to_index[action]))
         return action
 
     def determine_reward(self, creature, enemy):
@@ -166,18 +146,23 @@ class QLearningTabularAgent(TabularAgent):
         # Perform action, obtain s', r
         enemy = self.determine_enemy(creature, combat_handler)
         reward = self.determine_reward(creature, enemy)
-        # print("REWARD: {}".format(reward))
 
         # Perform update:
         action_index = self.action_to_index[action]
         diff = reward + self.gamma * np.max(self.Q[next_state]) - self.Q[current_state][action_index]
-        # print("Diff: {}".format(diff))
-        # print("BEFORE: {}: {}".format(current_state, self.Q[current_state]))
         self.Q[current_state][action_index] += self.alpha * diff
-        # print("AFTER: {}: {}".format(current_state, self.Q[current_state]))
-        # print("NEXT: {}: {}\n".format(next_state, self.Q[next_state]))
         return
 
 
 class DQN:
-    pass
+    def __init__(self):
+        pass
+
+    def update_step(self, action, creature, current_state, next_state, combat_handler):
+        pass
+
+    def determine_enemy(self, creature, combat_handler):
+        pass
+
+    def sample_action(self, creature, combat_handler):
+        pass
