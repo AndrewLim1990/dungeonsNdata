@@ -28,6 +28,7 @@ class EGreedyPolicy:
             epsilon = self.epsilon_end
         else:
             epsilon = self.epsilon_start + (self.epsilon_end - self.epsilon_start) / self.n_steps * t
+
         return epsilon
 
     def sample_policy_action(self, actions, best_action, t):
@@ -82,3 +83,30 @@ def filter_illegal_actions(creature, actions):
         actions = [action for action in actions if Attack not in classlookup(type(action)) + [type(action)]]
 
     return actions
+
+
+class Memory:
+    def __init__(self, memory_length):
+        self.memory_length = memory_length
+        self.memory = list()
+        self.idx = 0
+
+    def __len__(self):
+        return len(self.memory)
+
+    def add(self, experience):
+        is_under_max_length = len(self.memory) < self.memory_length
+        if is_under_max_length:
+            self.memory.append(experience)
+        else:
+            self.idx = self.idx % self.memory_length
+            self.memory[self.idx] = experience
+
+    def sample(self, n):
+        """
+        Sample from memory with replacement
+        :param n:
+        :return:
+        """
+        experiences = np.random.choice(self.memory, n)
+        return experiences

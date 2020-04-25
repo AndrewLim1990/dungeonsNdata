@@ -23,6 +23,8 @@ class CombatHandler:
         self.combat_is_over = False
         self.first_visualization = True
         self.current_turn = None
+        self.last_known_states = dict()
+        self.last_raw_states = dict()
 
     def add_combatant(self, combatant):
         self.combatants.append(combatant)
@@ -140,18 +142,28 @@ class CombatHandler:
                     combat_handler=self
                 )
 
-    def get_current_state(self, creature, enemy):
-        current_state = (
-            creature.location[0],  # creature x loc
-            creature.location[1],  # creature y loc
-            creature.attacks_used < creature.attacks_allowed,  # can attack
-            creature.movement_remaining > 0,  # can move
-            # creature.is_alive(),  # creature is alive?
-            enemy.location[0],  # enemy x loc
-            enemy.location[1],  # enemy y loc
-            enemy.hit_points,  # enemy health
-            # enemy.is_alive()  # enemy is alive?
-        )
+    def get_raw_state(self, creature, enemy):
+        current_state = np.array([[
+            creature.location[0] / self.environment.room_width,  # creature x loc
+            creature.location[1] / self.environment.room_length,  # creature y loc
+            creature.hit_points / creature.max_hit_points,  # creature health
+            creature.attacks_used,  # can attack
+            creature.movement_remaining,  # can move
+            enemy.location[0] / self.environment.room_width,  # enemy x loc
+            enemy.location[1] / self.environment.room_length,  # enemy y loc
+            enemy.hit_points / enemy.max_hit_points,  # enemy health
+        ]])
+
+        return current_state
+
+    def get_current_state(self, creature, enemy, last_raw_state=None):
+        current_raw_state = self.get_raw_state(creature, enemy)
+
+        if last_raw_state is None:
+            last_raw_state = current_raw_state
+
+        current_state = current_raw_state  # - last_raw_state
+
         return current_state
 
     def full_heal_combatants(self):
@@ -167,10 +179,11 @@ class CombatHandler:
         """
         self.initialize_combat()
         end_now = False
-        # print("---------------------------- NEW ROUND ----------------------------")
+        last_raw_state = dict()
+
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
-                # print("--------------------> Turn: {}".format(combatant.name))
+                # print("Turn: {}".format(combatant.name))
                 while True:
                     # Poll for action to use
                     action = combatant.player.strategy.sample_action(
@@ -180,16 +193,21 @@ class CombatHandler:
 
                     # Perform action (update state, update combat handler)
                     enemy = combatant.player.strategy.determine_enemy(combatant, combat_handler=self)
-                    current_state = self.get_current_state(creature=combatant, enemy=enemy)
+                    current_state = self.get_current_state(
+                        creature=combatant, enemy=enemy, last_raw_state=last_raw_state.get(combatant)
+                    )
+                    last_raw_state[combatant] = self.get_raw_state(creature=combatant, enemy=enemy)
                     combatant.use_action(
                         action,
                         combat_handler=self,
                         target_creature=combatant.sample_enemy(combat_handler=self)
                     )
-                    next_state = self.get_current_state(creature=combatant, enemy=enemy)
+                    next_state = self.get_current_state(
+                        creature=combatant, enemy=enemy, last_raw_state=last_raw_state.get(combatant)
+                    )
+                    self.last_known_states[combatant] = next_state
 
                     # Allow combatants to change strategy
-                    # self.let_combatants_update(combatant, action, current_state=current_state, next_state=next_state)
                     combatant.player.strategy.update_step(
                         action,
                         creature=combatant,
@@ -202,14 +220,12 @@ class CombatHandler:
                         loser = [creature for creature in self.combatants if creature.hit_points <= 0][0]
                         winner = [creature for creature in self.combatants if creature.hit_points > 0][0]
                         current_state = self.get_current_state(creature=loser, enemy=winner)
-                        if winner.name == "Leotris":
-                            pass
-                        # print(winner.name)
+
                         loser.player.strategy.update_step(
                             loser.get_action("end_turn"),
                             creature=loser,
-                            current_state=current_state,
-                            next_state=next_state,
+                            current_state=self.last_known_states[loser],
+                            next_state=current_state,
                             combat_handler=self
                         )
                         end_now = True
@@ -226,4 +242,5 @@ class CombatHandler:
         assert len(remaining_combatants) == 1
 
         winner = remaining_combatants[0]
+        # print("********** Winner: {} **********\n".format(winner))
         return winner

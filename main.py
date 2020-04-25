@@ -7,7 +7,7 @@ from utils.agent_utils import calc_win_percentage
 import dill
 import numpy as np
 
-np.set_printoptions(precision=1)
+np.set_printoptions(precision=3)
 
 def report_win_percentages(winner_list, num_games, combatants):
     """

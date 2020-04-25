@@ -1,10 +1,25 @@
 from utils.agent_utils import filter_illegal_actions
 from agents import QLearningTabularAgent
+from agents import DQN
 import numpy as np
 
 
 class Strategy:
+    def determine_enemy(self, creature, combat_handler):
+        enemy = None
+        combatants = combat_handler.combatants
+        for combatant in combatants:
+            if combatant != creature:
+                enemy = combatant
+        return enemy
+
+    def update_step(self, *args, **kwargs):
+        pass
+
     def update_strategy(self):
+        pass
+
+    def initialize(self, * args, **kwargs):
         pass
 
 
@@ -49,21 +64,26 @@ class RandomStrategy(Strategy):
         action = np.random.choice(actions)
         return action
 
-    def determine_enemy(self, creature, combat_handler):
-        enemy = None
-        combatants = combat_handler.combatants
-        for combatant in combatants:
-            if combatant != creature:
-                enemy = combatant
-        return enemy
 
-    def update_step(self, *args, **kwargs):
-        pass
+class RangeAggression(Strategy):
+    def __init__(self, *args, **kwargs):
+        self.name = "ranged_aggression"
 
-    def initialize(self, * args, **kwargs):
-        pass
+    def sample_action(self, creature, combat_handler):
+        """
+        Always uses "Arrow Shot"
+        :param creature:
+        :param combat_handler:
+        :return:
+        """
+        actions = [creature.get_action("Arrow Shot"), creature.get_action("end_turn")]
+
+        action = np.random.choice(actions, p=[0.95, 0.05])
+
+        return action
 
 
-hayden = PlayerCharacter(strategy=QLearningTabularAgent(), name="Hayden")
+hayden = PlayerCharacter(strategy=DQN(), name="Hayden")
 # hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
+# hayden = PlayerCharacter(strategy=RangeAggression(), name="Hayden")
 dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")
