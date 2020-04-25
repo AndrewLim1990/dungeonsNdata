@@ -5,6 +5,7 @@ from collections import namedtuple
 
 import numpy as np
 import random
+import torch
 
 
 class EGreedyPolicy:
@@ -87,7 +88,7 @@ def filter_illegal_actions(creature, actions):
     return actions
 
 
-Experience = namedtuple("Experience", ("state", "action", "reward", "next_state"))
+Experience = namedtuple("Experience", ("state", "action", "reward", "next_state", "priority"))
 
 
 class Memory:
@@ -113,5 +114,9 @@ class Memory:
         :param n:
         :return:
         """
-        experiences = random.sample(self.memory, n)
-        return experiences
+        all_exp = Experience(*zip(*self.memory))
+        priorities = torch.tensor(list(all_exp.priority))
+        priorities = priorities / priorities.sum()
+        memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities.numpy())
+        memories = [self.memory[idx] for idx in memory_indicies]
+        return memories

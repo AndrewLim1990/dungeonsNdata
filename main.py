@@ -14,8 +14,9 @@ def report_win_percentages(winner_list, num_games, combatants):
     :return: None
     """
     win_percentages = calc_win_percentage(winner_list[-num_games:], combatants)
-    print("Win percentages: {}".format(
+    print("Win percentages: {} ({})".format(
         win_percentages,
+        leotris.player.strategy.policy.get_epsilon(leotris.player.strategy.t)
     ))
 
 

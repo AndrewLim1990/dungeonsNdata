@@ -143,7 +143,7 @@ class QLearningTabularAgent(TabularAgent):
 
 
 class FunctionApproximation:
-    def __init__(self, max_training_steps=2e7, epsilon_start=0.1, epsilon_end=0.005, alpha=1e-1,
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.1, epsilon_end=0.005, alpha=1e-1,
                  gamma=0.99, update_frequency=5e5):
         self.max_training_steps = max_training_steps
         self.epsilon_start = epsilon_start
@@ -299,8 +299,8 @@ class FunctionApproximation:
 
 
 class DQN(FunctionApproximation):
-    def __init__(self, max_training_steps=2e7, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-3,
-                 gamma=0.99, update_frequency=5e5, memory_length=10000, batch_size=64):
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-3,
+                 gamma=0.99, update_frequency=5e5, memory_length=1024, batch_size=128):
         super().__init__(max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency)
         self.policy_net = None
         self.target_net = None
@@ -407,6 +407,12 @@ class DQN(FunctionApproximation):
             for param in self.policy_net.parameters():
                 param -= self.alpha * param.grad
 
+    def calc_experience_priority(self, current_state, action, reward, next_state):
+        predicted = self.policy_net(current_state).detach().gather(1, action)
+        target = self.gamma * self.target_net(next_state).max(1)[0].detach().view(-1, 1) + reward
+        priority = torch.abs(predicted - target).pow(0.7)
+        return priority
+
     def update_step(self, action, creature, current_state, next_state, combat_handler):
         current_state = torch.from_numpy(current_state).float()
         next_state = torch.from_numpy(next_state).float()
@@ -415,7 +421,8 @@ class DQN(FunctionApproximation):
         reward = torch.tensor([[self.determine_reward(creature, enemy)]]).float()
 
         # Add to experience replay
-        self.memory.add((current_state, action_index, reward, next_state))
+        priority = self.calc_experience_priority(current_state, action_index, reward, next_state)
+        self.memory.add((current_state, action_index, reward, next_state, priority))
 
         # Update weights:
         if len(self.memory) >= self.memory.memory_length:
