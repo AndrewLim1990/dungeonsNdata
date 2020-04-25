@@ -1,5 +1,6 @@
 from collections import defaultdict
 from utils.agent_utils import EGreedyPolicy
+from utils.agent_utils import Experience
 from utils.agent_utils import filter_illegal_actions
 from utils.agent_utils import Memory
 
@@ -299,12 +300,13 @@ class FunctionApproximation:
 
 class DQN(FunctionApproximation):
     def __init__(self, max_training_steps=2e7, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-3,
-                 gamma=0.99, update_frequency=5e5, memory_length=10000):
+                 gamma=0.99, update_frequency=5e5, memory_length=10000, batch_size=64):
         super().__init__(max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency)
         self.policy_net = None
         self.target_net = None
         self.memory = Memory(memory_length)
         self.name = "DQN"
+        self.batch_size = batch_size
 
     def loss_fn(self, target, predicted):
         sq_error = (predicted - target).pow(2)
@@ -384,40 +386,46 @@ class DQN(FunctionApproximation):
         else:
             return self.index_to_action[action_index.data.tolist()[0][0]]
 
+    def learn_from_replay(self):
+        # Sample experiences from memory
+        batch = self.memory.sample(self.batch_size)
+        batch = Experience(*zip(*batch))
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+        next_state_batch = torch.cat(batch.next_state)
+
+        # Calculate gradients
+        target_batch = self.gamma * self.target_net(next_state_batch).max(1)[0].detach().view(-1, 1) + reward_batch
+        actual_batch = self.policy_net(state_batch).gather(1, action_batch)
+        loss = self.loss_fn(target=target_batch, predicted=actual_batch)
+        self.policy_net.zero_grad()
+        loss.backward()
+
+        # Update weights
+        with torch.no_grad():
+            for param in self.policy_net.parameters():
+                param -= self.alpha * param.grad
+
     def update_step(self, action, creature, current_state, next_state, combat_handler):
         current_state = torch.from_numpy(current_state).float()
         next_state = torch.from_numpy(next_state).float()
         action_index = torch.tensor([[self.action_to_index[action]]])
         enemy = self.determine_enemy(creature, combat_handler)
-        reward = self.determine_reward(creature, enemy)
+        reward = torch.tensor([[self.determine_reward(creature, enemy)]]).float()
 
         # Add to experience replay
-        self.memory.add(current_state, action_index, reward, next_state)
+        self.memory.add((current_state, action_index, reward, next_state))
 
-        target = self.gamma * self.target_net(next_state).max(1)[0].detach() + reward
-        actual = self.policy_net(current_state).gather(1, action_index)
+        # Update weights:
+        if len(self.memory) >= self.memory.memory_length:
+            self.learn_from_replay()
 
-        old_Q = self.policy_net(current_state)
-        loss = self.loss_fn(target=target, predicted=actual)
-        self.policy_net.zero_grad()
-        loss.backward()
-        with torch.no_grad():
-            for param in self.policy_net.parameters():
-                param -= self.alpha * param.grad
-        new_Q = self.policy_net(current_state)
-
-        # print("Action: {} ({})".format(action.name, action_index))
-        # print("State: {}".format(current_state))
-        # print("Reward: {}".format(reward))
-        # print("Old Q: {}".format(old_Q))
-        # print("Next Q: {}".format(new_Q))
-        # print("Delta Q: {}".format(new_Q - old_Q))
-        # print("Target: {}".format(target))
-        # print("Actual: {}\n".format(actual))
-
+        # Update target network weights
         if (self.training_iteration + 1) % self.update_frequency == 0:
             print("w_stored <- w")
             self.target_net.load_state_dict(self.policy_net.state_dict())
-
         self.training_iteration += 1
+
+
 

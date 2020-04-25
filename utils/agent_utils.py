@@ -1,8 +1,10 @@
 from actions import Attack
 from actions import Move
 from collections import Counter
+from collections import namedtuple
 
 import numpy as np
+import random
 
 
 class EGreedyPolicy:
@@ -85,6 +87,9 @@ def filter_illegal_actions(creature, actions):
     return actions
 
 
+Experience = namedtuple("Experience", ("state", "action", "reward", "next_state"))
+
+
 class Memory:
     def __init__(self, memory_length):
         self.memory_length = memory_length
@@ -97,7 +102,7 @@ class Memory:
     def add(self, experience):
         is_under_max_length = len(self.memory) < self.memory_length
         if is_under_max_length:
-            self.memory.append(experience)
+            self.memory.append(Experience(*experience))
         else:
             self.idx = self.idx % self.memory_length
             self.memory[self.idx] = experience
@@ -108,5 +113,5 @@ class Memory:
         :param n:
         :return:
         """
-        experiences = np.random.choice(self.memory, n)
+        experiences = random.sample(self.memory, n)
         return experiences
