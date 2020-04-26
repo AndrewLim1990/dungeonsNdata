@@ -1,5 +1,6 @@
 from utils.agent_utils import filter_illegal_actions
 from agents import QLearningTabularAgent
+from agents import DoubleDQN
 from agents import DQN
 import numpy as np
 
@@ -82,8 +83,8 @@ class RangeAggression(Strategy):
 
         return action
 
-
-hayden = PlayerCharacter(strategy=DQN(), name="Hayden")
+hayden = PlayerCharacter(strategy=DoubleDQN(), name="Hayden")
+# hayden = PlayerCharacter(strategy=DQN(), name="Hayden")
 # hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
 # hayden = PlayerCharacter(strategy=RangeAggression(), name="Hayden")
 dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")

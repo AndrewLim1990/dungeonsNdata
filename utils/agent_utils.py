@@ -115,8 +115,9 @@ class Memory:
         :return:
         """
         all_exp = Experience(*zip(*self.memory))
-        priorities = torch.tensor(list(all_exp.priority))
+        priorities = np.array(list(all_exp.priority))
         priorities = priorities / priorities.sum()
-        memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities.numpy())
+        memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities, replace=False)
         memories = [self.memory[idx] for idx in memory_indicies]
+        # memories = random.sample(self.memory, n)
         return memories

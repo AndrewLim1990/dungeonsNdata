@@ -144,7 +144,7 @@ class QLearningTabularAgent(TabularAgent):
 
 class FunctionApproximation:
     def __init__(self, max_training_steps=5e6, epsilon_start=0.1, epsilon_end=0.005, alpha=1e-1,
-                 gamma=0.99, update_frequency=5e5):
+                 gamma=0.99, update_frequency=1e4):
         self.max_training_steps = max_training_steps
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
@@ -299,8 +299,8 @@ class FunctionApproximation:
 
 
 class DQN(FunctionApproximation):
-    def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-3,
-                 gamma=0.99, update_frequency=5e5, memory_length=1024, batch_size=128):
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-4,
+                 gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
         super().__init__(max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency)
         self.policy_net = None
         self.target_net = None
@@ -433,6 +433,38 @@ class DQN(FunctionApproximation):
             print("w_stored <- w")
             self.target_net.load_state_dict(self.policy_net.state_dict())
         self.training_iteration += 1
+
+
+class DoubleDQN(DQN):
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-4,
+                 gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
+        super().__init__(
+            max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
+        )
+        self.name = "double_DQN"
+
+    def learn_from_replay(self):
+        # Sample experiences from memory
+        batch = self.memory.sample(self.batch_size)
+        batch = Experience(*zip(*batch))
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+        next_state_batch = torch.cat(batch.next_state)
+
+        # Calculate gradients
+        selected_actions = self.policy_net(next_state_batch).max(1)[1].detach().view(-1, 1)
+        evaluation_batch = self.target_net(next_state_batch).gather(1, selected_actions)
+        target_batch = self.gamma * evaluation_batch + reward_batch
+        actual_batch = self.policy_net(state_batch).gather(1, action_batch)
+        loss = self.loss_fn(target=target_batch, predicted=actual_batch)
+        self.policy_net.zero_grad()
+        loss.backward()
+
+        # Update weights
+        with torch.no_grad():
+            for param in self.policy_net.parameters():
+                param -= self.alpha * param.grad
 
 
 
