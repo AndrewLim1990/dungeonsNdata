@@ -1,8 +1,9 @@
 import numpy as np
-import time
+import torch
 
 from actions import Attack
 from actions import EndTurn
+from collections import defaultdict
 from utils.dnd_utils import draw_location
 
 
@@ -25,6 +26,7 @@ class CombatHandler:
         self.current_turn = None
         self.last_known_states = dict()
         self.last_raw_states = dict()
+        self.total_q_val = defaultdict(list)
 
     def add_combatant(self, combatant):
         self.combatants.append(combatant)
@@ -144,14 +146,14 @@ class CombatHandler:
 
     def get_raw_state(self, creature, enemy):
         current_state = np.array([[
-            creature.location[0] / self.environment.room_width,  # creature x loc
-            creature.location[1] / self.environment.room_length,  # creature y loc
-            creature.hit_points / creature.max_hit_points,  # creature health
-            creature.attacks_used,  # can attack
-            creature.movement_remaining,  # can move
-            enemy.location[0] / self.environment.room_width,  # enemy x loc
-            enemy.location[1] / self.environment.room_length,  # enemy y loc
-            enemy.hit_points / enemy.max_hit_points,  # enemy health
+            creature.hit_points / creature.max_hit_points,          # creature health
+            enemy.hit_points / enemy.max_hit_points,                # enemy health
+            creature.location[0] / self.environment.room_width,     # creature x loc
+            creature.location[1] / self.environment.room_length,    # creature y loc
+            enemy.location[0] / self.environment.room_width,        # enemy x loc
+            enemy.location[1] / self.environment.room_length,       # enemy y loc
+            creature.attacks_used,                                  # can attack
+            creature.movement_remaining / creature.speed,           # can move
         ]])
 
         return current_state
@@ -173,6 +175,10 @@ class CombatHandler:
         """
         [combatant.full_heal() for combatant in self.combatants]
 
+    def get_combatant(self, name):
+        combatant = [c for c in self.combatants if c.name == name][0]
+        return combatant
+
     def run(self):
         """
         Runs Combat
@@ -183,13 +189,13 @@ class CombatHandler:
 
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
-                # print("Turn: {}".format(combatant.name))
                 while True:
                     # Poll for action to use
-                    action = combatant.player.strategy.sample_action(
+                    action, q_val = combatant.player.strategy.sample_action(
                         creature=combatant,
                         combat_handler=self
                     )
+                    self.total_q_val[combatant].append(q_val)
 
                     # Perform action (update state, update combat handler)
                     enemy = combatant.player.strategy.determine_enemy(combatant, combat_handler=self)
@@ -209,38 +215,32 @@ class CombatHandler:
 
                     # Allow combatants to change strategy
                     combatant.player.strategy.update_step(
-                        action,
+                        action=action,
                         creature=combatant,
                         current_state=current_state,
                         next_state=next_state,
                         combat_handler=self
                     )
                     if self.check_if_combat_is_over():
-                        # Let loser adjust
-                        loser = [creature for creature in self.combatants if creature.hit_points <= 0][0]
-                        winner = [creature for creature in self.combatants if creature.hit_points > 0][0]
-                        current_state = self.get_current_state(creature=loser, enemy=winner)
-
-                        loser.player.strategy.update_step(
-                            loser.get_action("end_turn"),
-                            creature=loser,
-                            current_state=self.last_known_states[loser],
-                            next_state=current_state,
-                            combat_handler=self
-                        )
                         end_now = True
                         break
                     if type(action) == EndTurn:
                         break
                 if end_now:
+                    lst_state = self.get_current_state(
+                        creature=self.get_combatant("Leotris"),
+                        enemy=self.get_combatant("Strahd")
+                    )[0]
+                    leotris = self.get_combatant("Leotris")
                     end_now = False
                     break
-
             self.end_of_round_cleanup()
 
         remaining_combatants = [creature.name for creature in self.combatants]
         assert len(remaining_combatants) == 1
 
+        avg_q_val = torch.tensor(self.total_q_val[leotris]).mean()
+
         winner = remaining_combatants[0]
-        # print("********** Winner: {} **********\n".format(winner))
-        return winner
+        print("Winner: {}".format(winner))
+        return winner, avg_q_val, lst_state

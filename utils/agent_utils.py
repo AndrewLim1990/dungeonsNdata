@@ -88,7 +88,7 @@ def filter_illegal_actions(creature, actions):
     return actions
 
 
-Experience = namedtuple("Experience", ("state", "action", "reward", "next_state", "priority"))
+Experience = namedtuple("Experience", ("state", "action", "reward", "next_state"))
 
 
 class Memory:
@@ -106,7 +106,9 @@ class Memory:
             self.memory.append(Experience(*experience))
         else:
             self.idx = self.idx % self.memory_length
-            self.memory[self.idx] = experience
+            self.memory[self.idx] = Experience(*experience)
+            self.idx += 1
+            pass
 
     def sample(self, n):
         """
@@ -114,10 +116,10 @@ class Memory:
         :param n:
         :return:
         """
-        all_exp = Experience(*zip(*self.memory))
-        priorities = np.array(list(all_exp.priority))
-        priorities = priorities / priorities.sum()
-        memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities, replace=False)
-        memories = [self.memory[idx] for idx in memory_indicies]
-        # memories = random.sample(self.memory, n)
+        # all_exp = Experience(*zip(*self.memory))
+        # priorities = np.array(list(all_exp.priority))
+        # priorities = priorities / priorities.sum()
+        # memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities, replace=False)
+        # memories = [self.memory[idx] for idx in memory_indicies]
+        memories = random.sample(self.memory, n)
         return memories

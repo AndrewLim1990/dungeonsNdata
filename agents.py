@@ -238,8 +238,6 @@ class FunctionApproximation:
         reward = -0.01
         if enemy.is_alive() is False:
             reward = 100
-        elif creature.is_alive() is False:
-            reward = -100
         return reward
 
     def best_old_q(self, state):
@@ -299,7 +297,7 @@ class FunctionApproximation:
 
 
 class DQN(FunctionApproximation):
-    def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-4,
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-4,
                  gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
         super().__init__(max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency)
         self.policy_net = None
@@ -351,8 +349,21 @@ class DQN(FunctionApproximation):
         :param report_q:
         :return:
         """
-        with torch.no_grad():
-            return self.policy_net(state).max(1)[1].view(1, 1)
+        # legal_indicies = [
+        #     self.action_to_index[action] for action in filter_illegal_actions(creature, creature.actions)
+        # ]
+        # with torch.no_grad():
+        #     action_indicies = torch.argsort(-self.policy_net(state).detach()).numpy()[0]
+        # for idx in action_indicies:
+        #     if idx in legal_indicies:
+        #         action_idx = torch.tensor([[idx]])
+        #         break
+        q_vals = self.policy_net(state).detach()
+        action_idx = q_vals.max(1)[1].view(1, 1)
+        # print("State: {}".format(state))
+        # print("Q-values: {}".format(q_vals))
+        # print("Best Action: {}\n".format(self.index_to_action[action_idx.numpy()[0][0]].name))
+        return action_idx
 
     def sample_action(self, creature, combat_handler, return_index=False):
         """
@@ -378,13 +389,17 @@ class DQN(FunctionApproximation):
             action_index = self.get_best_action(creature, state)
         else:
             action_index = torch.tensor([[np.random.randint(self.n_actions)]], dtype=torch.long)
+        # print("State: {}".format(state))
+        # print("Actual Action: {}\n".format(self.index_to_action[action_index.numpy()[0][0]].name))
         self.t += 1
+
+        q_val = self.policy_net(state)[0][action_index]
 
         # Returns either action index or action
         if return_index:
-            return action_index
+            return action_index, q_val
         else:
-            return self.index_to_action[action_index.data.tolist()[0][0]]
+            return self.index_to_action[action_index.data.tolist()[0][0]], q_val
 
     def learn_from_replay(self):
         # Sample experiences from memory
@@ -418,11 +433,10 @@ class DQN(FunctionApproximation):
         next_state = torch.from_numpy(next_state).float()
         action_index = torch.tensor([[self.action_to_index[action]]])
         enemy = self.determine_enemy(creature, combat_handler)
-        reward = torch.tensor([[self.determine_reward(creature, enemy)]]).float()
+        reward = torch.tensor([[self.determine_reward(creature=creature, enemy=enemy)]]).float()
 
         # Add to experience replay
-        priority = self.calc_experience_priority(current_state, action_index, reward, next_state)
-        self.memory.add((current_state, action_index, reward, next_state, priority))
+        self.memory.add((current_state, action_index, reward, next_state))
 
         # Update weights:
         if len(self.memory) >= self.memory.memory_length:
@@ -437,11 +451,88 @@ class DQN(FunctionApproximation):
 
 class DoubleDQN(DQN):
     def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-4,
-                 gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
+                 gamma=0.95, update_frequency=5e4, memory_length=1024, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
         )
         self.name = "double_DQN"
+
+    def calc_experience_priority(self, current_state, action, reward, next_state):
+        next_action = self.policy_net(next_state).detach().max(1)[1].view(-1, 1)
+        evaluation = self.target_net(next_state).detach().gather(1, next_action)
+        target = self.gamma * evaluation + reward
+
+        predicted = self.policy_net(current_state).detach().gather(1, action)
+
+        priority = torch.abs(predicted - target).pow(0.7)
+
+        return priority
+
+    def learn_from_replay(self):
+        # Sample experiences from memory
+        batch = self.memory.sample(self.batch_size)
+        batch = Experience(*zip(*batch))
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+        next_state_batch = torch.cat(batch.next_state)
+
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)))
+        non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
+
+        # Calculate gradients
+        selected_actions = self.policy_net(next_state_batch).max(1)[1].view(-1, 1)
+        evaluation_batch = self.target_net(next_state_batch).detach().gather(1, selected_actions)
+        target_batch = self.gamma * evaluation_batch + reward_batch
+        actual_batch = self.policy_net(state_batch).gather(1, action_batch)
+        loss = self.loss_fn(target=target_batch, predicted=actual_batch)
+        self.policy_net.zero_grad()
+        loss.backward()
+
+        # Update weights
+        with torch.no_grad():
+            for param in self.policy_net.parameters():
+                param -= self.alpha * param.grad
+
+    def determine_reward(self, creature, enemy):
+        """
+        :param creature:
+        :param enemy:
+        :return:
+        """
+        reward = 0
+        if enemy.is_alive() is False:
+            reward = 100
+        return reward
+
+
+class Tst(DQN):
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-3,
+                 gamma=0.95, update_frequency=5e4, memory_length=1, batch_size=1):
+        super().__init__(
+            max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
+        )
+        self.name = "linear"
+
+    def initialize_weights(self, creature, state):
+        self.n_states = state.shape[1]
+        self.n_actions = len(creature.actions)
+        self.n_features = self.n_states + self.n_actions
+
+        # Initialize weights
+        self.policy_net = torch.nn.Sequential(
+            torch.nn.Linear(self.n_states, self.n_actions)
+        )
+
+        self.target_net = torch.nn.Sequential(
+            torch.nn.Linear(self.n_states, self.n_actions)
+        )
+
+        # Obtain position in feature list
+        action_indicies = zip(creature.actions, range(self.n_actions))
+        self.action_to_index = {action: index for action, index in action_indicies}
+        self.index_to_action = {index: action for action, index in self.action_to_index.items()}
+
 
     def learn_from_replay(self):
         # Sample experiences from memory
@@ -453,18 +544,43 @@ class DoubleDQN(DQN):
         next_state_batch = torch.cat(batch.next_state)
 
         # Calculate gradients
-        selected_actions = self.policy_net(next_state_batch).max(1)[1].detach().view(-1, 1)
-        evaluation_batch = self.target_net(next_state_batch).gather(1, selected_actions)
+        selected_actions = self.policy_net(next_state_batch).max(1)[1].view(-1, 1)
+        evaluation_batch = self.target_net(next_state_batch).detach().gather(1, selected_actions)
         target_batch = self.gamma * evaluation_batch + reward_batch
         actual_batch = self.policy_net(state_batch).gather(1, action_batch)
         loss = self.loss_fn(target=target_batch, predicted=actual_batch)
         self.policy_net.zero_grad()
         loss.backward()
 
+        q_before = self.policy_net(state_batch).detach()
         # Update weights
         with torch.no_grad():
             for param in self.policy_net.parameters():
                 param -= self.alpha * param.grad
+        q_after = self.policy_net(state_batch).detach()
+        action_name = self.index_to_action[action_batch.numpy()[0][0]].name
+
+        print("Action: {}".format(action_name))
+        print("State: {}".format(state_batch))
+        print("Reward: {}".format(reward_batch[0][0]))
+        print("Predicted: {}".format(actual_batch))
+        print("Target: {}".format(target_batch))
+        print("Q Before: {}".format(q_before))
+        print("Q After: {}".format(q_after))
+        print("Q Delta: {}\n".format(q_after - q_before))
+
+        return
+
+    def determine_reward(self, creature, enemy):
+        """
+        :param creature:
+        :param enemy:
+        :return:
+        """
+        reward = 0
+        if enemy.is_alive() is False:
+            reward = 100
+        return reward
 
 
 

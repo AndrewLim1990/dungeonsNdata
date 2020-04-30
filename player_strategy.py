@@ -2,7 +2,9 @@ from utils.agent_utils import filter_illegal_actions
 from agents import QLearningTabularAgent
 from agents import DoubleDQN
 from agents import DQN
+from agents import Tst
 import numpy as np
+import dill
 
 
 class Strategy:
@@ -63,7 +65,8 @@ class RandomStrategy(Strategy):
     def sample_action(self, creature, combat_handler):
         actions = filter_illegal_actions(creature=creature, actions=creature.actions)
         action = np.random.choice(actions)
-        return action
+        q_val = 0
+        return action, q_val
 
 
 class RangeAggression(Strategy):
@@ -83,7 +86,8 @@ class RangeAggression(Strategy):
 
         return action
 
-hayden = PlayerCharacter(strategy=DoubleDQN(), name="Hayden")
+
+hayden = PlayerCharacter(strategy=Tst(), name="Hayden")
 # hayden = PlayerCharacter(strategy=DQN(), name="Hayden")
 # hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
 # hayden = PlayerCharacter(strategy=RangeAggression(), name="Hayden")
