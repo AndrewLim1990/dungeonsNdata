@@ -87,8 +87,8 @@ class RangeAggression(Strategy):
         return action
 
 
-hayden = PlayerCharacter(strategy=Tst(), name="Hayden")
-# hayden = PlayerCharacter(strategy=DQN(), name="Hayden")
+# hayden = PlayerCharacter(strategy=Tst(), name="Hayden")
+hayden = PlayerCharacter(strategy=DoubleDQN(), name="Hayden")
 # hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
 # hayden = PlayerCharacter(strategy=RangeAggression(), name="Hayden")
 dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")

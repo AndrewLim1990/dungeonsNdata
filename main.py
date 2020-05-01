@@ -14,7 +14,7 @@ np.set_printoptions(suppress=True)
 # leotris = dill.load(open("results/model_double_DQN_2.pickle", "rb"))
 
 
-def report_win_percentages(winner_list, num_games, combatants, q_vals, last_states):
+def report_win_percentages(winner_list, num_games, combatants, q_vals, last_states, num_actions_takens):
     """
     :return: None
     """
@@ -27,11 +27,11 @@ def report_win_percentages(winner_list, num_games, combatants, q_vals, last_stat
         leotris.player.strategy.policy.get_epsilon(leotris.player.strategy.t),
     ))
 
-    results = list(zip(winner_list[-num_games:], q_vals, last_states))
+    results = list(zip(winner_list[-num_games:], q_vals, last_states, num_actions_takens))
     results = sorted(results, key=lambda x: -x[1])
 
-    for winner, q_val, last_state in results:
-        print(" {}: {} ({})".format(winner, round(q_val, 3), last_state))
+    for winner, q_val, last_state, num_actions_taken in results:
+        print(" {}: {} ({}) \t\t{}".format(winner, round(q_val, 3), last_state, num_actions_taken))
     print("----------------------\n")
 
 
@@ -53,17 +53,19 @@ def main():
     winner_list = []
     q_vals = []
     last_states = []
+    num_actions_takens = []
 
     for i in range(n_iters):
         combat_handler = CombatHandler(
             environment=square_room,
             combatants=[leotris, vampire]
         )
-        winner, q_val, last_state = combat_handler.run()
+        winner, q_val, last_state, num_actions_taken = combat_handler.run()
 
         winner_list.append(winner)
         q_vals.append(q_val)
         last_states.append(last_state)
+        num_actions_takens.append(num_actions_taken)
 
         if (i + 1) % 10 == 0:
             report_win_percentages(
@@ -71,10 +73,12 @@ def main():
                 num_games=10,
                 combatants=[leotris, vampire],
                 q_vals=q_vals,
-                last_states=last_states
+                last_states=last_states,
+                num_actions_takens=num_actions_takens
             )
             q_vals = []
             last_states = []
+            num_actions_takens = []
 
         # Save tabular Q
         if (i + 1) % 100 == 0:

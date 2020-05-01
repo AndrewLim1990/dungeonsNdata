@@ -4,6 +4,7 @@ import torch
 from actions import Attack
 from actions import EndTurn
 from collections import defaultdict
+from collections import Counter
 from utils.dnd_utils import draw_location
 
 
@@ -25,8 +26,8 @@ class CombatHandler:
         self.first_visualization = True
         self.current_turn = None
         self.last_known_states = dict()
-        self.last_raw_states = dict()
         self.total_q_val = defaultdict(list)
+        self.num_actions_taken = Counter()
 
     def add_combatant(self, combatant):
         self.combatants.append(combatant)
@@ -154,17 +155,19 @@ class CombatHandler:
             enemy.location[1] / self.environment.room_length,       # enemy y loc
             creature.attacks_used,                                  # can attack
             creature.movement_remaining / creature.speed,           # can move
+            self.num_actions_taken[creature] / 1000,                # num actions taken
         ]])
 
         return current_state
 
-    def get_current_state(self, creature, enemy, last_raw_state=None):
-        current_raw_state = self.get_raw_state(creature, enemy)
+    def get_current_state(self, creature, enemy):
+        creature_hitpoints_idx = 0
+        enemy_hitpoints_idx = 1
+        current_state = self.get_raw_state(creature, enemy)
 
-        if last_raw_state is None:
-            last_raw_state = current_raw_state
-
-        current_state = current_raw_state  # - last_raw_state
+        is_end_state = (current_state[0][creature_hitpoints_idx] <= 0) or (current_state[0][enemy_hitpoints_idx] <= 0)
+        if is_end_state:
+            return None
 
         return current_state
 
@@ -185,11 +188,23 @@ class CombatHandler:
         """
         self.initialize_combat()
         end_now = False
-        last_raw_state = dict()
 
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
+                # Update combatants if it gets back to their turn after they ended
+                if self.last_known_states.get(combatant) is not None:
+                    enemy = combatant.player.strategy.determine_enemy(combatant, combat_handler=self)
+                    next_state = self.get_current_state(creature=combatant, enemy=enemy)
+                    combatant.player.strategy.update_step(
+                        action=combatant.get_action("end_turn"),
+                        creature=combatant,
+                        current_state=self.last_known_states[combatant],
+                        next_state=next_state,
+                        combat_handler=self
+                    )
+
                 while True:
+                    self.num_actions_taken[combatant] += 1
                     # Poll for action to use
                     action, q_val = combatant.player.strategy.sample_action(
                         creature=combatant,
@@ -200,16 +215,15 @@ class CombatHandler:
                     # Perform action (update state, update combat handler)
                     enemy = combatant.player.strategy.determine_enemy(combatant, combat_handler=self)
                     current_state = self.get_current_state(
-                        creature=combatant, enemy=enemy, last_raw_state=last_raw_state.get(combatant)
+                        creature=combatant, enemy=enemy
                     )
-                    last_raw_state[combatant] = self.get_raw_state(creature=combatant, enemy=enemy)
                     combatant.use_action(
                         action,
                         combat_handler=self,
                         target_creature=combatant.sample_enemy(combat_handler=self)
                     )
                     next_state = self.get_current_state(
-                        creature=combatant, enemy=enemy, last_raw_state=last_raw_state.get(combatant)
+                        creature=combatant, enemy=enemy
                     )
                     self.last_known_states[combatant] = next_state
 
@@ -222,12 +236,25 @@ class CombatHandler:
                         combat_handler=self
                     )
                     if self.check_if_combat_is_over():
+                        # Let loser adjust
+                        loser = [creature for creature in self.combatants if creature.hit_points <= 0][0]
+                        winner = [creature for creature in self.combatants if creature.hit_points > 0][0]
+                        current_state = self.get_current_state(creature=loser, enemy=winner)
+
+                        loser.player.strategy.update_step(
+                            loser.get_action("end_turn"),
+                            creature=loser,
+                            current_state=self.last_known_states[loser],
+                            next_state=current_state,
+                            combat_handler=self
+                        )
                         end_now = True
                         break
+                    # End of combatant turn:
                     if type(action) == EndTurn:
                         break
                 if end_now:
-                    lst_state = self.get_current_state(
+                    lst_state = self.get_raw_state(
                         creature=self.get_combatant("Leotris"),
                         enemy=self.get_combatant("Strahd")
                     )[0]
@@ -242,5 +269,5 @@ class CombatHandler:
         avg_q_val = torch.tensor(self.total_q_val[leotris]).mean()
 
         winner = remaining_combatants[0]
-        print("Winner: {}".format(winner))
-        return winner, avg_q_val, lst_state
+        # print("Winner: {}".format(winner))
+        return winner, avg_q_val, lst_state, self.num_actions_taken[leotris]
