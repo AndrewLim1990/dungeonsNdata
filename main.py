@@ -1,3 +1,4 @@
+from agents import TIME_LIMIT
 from creatures import vampire
 from creatures import leotris
 from environments import square_room
@@ -56,7 +57,8 @@ def main():
     for i in range(n_iters):
         combat_handler = CombatHandler(
             environment=square_room,
-            combatants=[leotris, vampire]
+            combatants=[leotris, vampire],
+            time_limit=TIME_LIMIT
         )
         intialize_combatants([leotris, vampire], combat_handler=combat_handler)
         winner, q_val, last_state, num_actions_taken = combat_handler.run()

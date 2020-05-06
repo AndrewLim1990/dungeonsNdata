@@ -1,7 +1,5 @@
 from utils.agent_utils import filter_illegal_actions
-from agents import QLearningTabularAgent
 from agents import DoubleDQN
-from agents import DQN
 import numpy as np
 
 
@@ -65,6 +63,14 @@ class RandomStrategy(Strategy):
         action = np.random.choice(actions)
         q_val = 0
         return action, q_val
+
+    @staticmethod
+    def get_current_state(*args, **kwargs):
+        return None
+
+    @staticmethod
+    def get_raw_state(*args, **kwargs):
+        return [None]
 
 
 class RangeAggression(Strategy):

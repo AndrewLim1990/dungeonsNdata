@@ -9,6 +9,8 @@ import copy
 import numpy as np
 import torch
 
+TIME_LIMIT = 1500
+
 
 class Agent:
     def __init__(self):
@@ -59,7 +61,8 @@ class QLearningTabularAgent(TabularAgent):
         """
         self.initialize_q(creature)
 
-    def determine_enemy(self, creature, combat_handler):
+    @staticmethod
+    def determine_enemy(creature, combat_handler):
         """
         :param creature:
         :param combat_handler:
@@ -91,6 +94,15 @@ class QLearningTabularAgent(TabularAgent):
 
         return best_action
 
+    @staticmethod
+    def get_current_state(creature, combat_handler):
+        """
+        Todo: Implement this.
+        :param self:
+        :return:
+        """
+        return 1
+
     def sample_action(self, creature, combat_handler):
         """
         :param creature:
@@ -99,8 +111,7 @@ class QLearningTabularAgent(TabularAgent):
         """
         actions = creature.actions
         actions = filter_illegal_actions(creature, actions)
-        enemy = creature.player.strategy.determine_enemy(creature, combat_handler=combat_handler)
-        state = tuple(combat_handler.get_current_state(creature, enemy)[0])
+        state = tuple(self.get_current_state(creature=creature, combat_handler=combat_handler)[0])
         best_action = self.get_best_action(creature, state)
 
         # Obtain action via e-greedy policy
@@ -111,7 +122,8 @@ class QLearningTabularAgent(TabularAgent):
         self.t += 1
         return action
 
-    def determine_reward(self, creature, enemy):
+    @staticmethod
+    def determine_reward(creature, enemy):
         """
         :param creature:
         :param enemy:
@@ -189,19 +201,42 @@ class FunctionApproximation:
     @staticmethod
     def determine_reward(damage_done=0):
         """
-        :param creature:
-        :param enemy:
         :param damage_done:
         :return:
         """
         reward = damage_done - 0.1
         return reward
 
+    @staticmethod
+    def get_raw_state(creature, enemy, combat_handler):
+        raw_state = np.array([[
+            creature.hit_points / creature.max_hit_points,                          # creature health
+            enemy.hit_points / enemy.max_hit_points,                                # enemy health
+            creature.location[0] / combat_handler.environment.room_width,           # creature x loc
+            creature.location[1] / combat_handler.environment.room_length,          # creature y loc
+            enemy.location[0] / combat_handler.environment.room_width,              # enemy x loc
+            enemy.location[1] / combat_handler.environment.room_length,             # enemy y loc
+            creature.attacks_used,                                                  # attacks used
+            creature.movement_remaining / creature.speed,                           # remaining movement
+            (2 * creature.action_count - TIME_LIMIT) / TIME_LIMIT                   # num actions taken
+        ]])
+        return raw_state
+
+    def get_current_state(self, creature, combat_handler):
+        enemy = self.determine_enemy(creature, combat_handler)
+        is_exceeded_time_limit = creature.action_count >= TIME_LIMIT
+
+        if not(creature.is_alive()) or not(enemy.is_alive()) or is_exceeded_time_limit:
+            current_state = None
+        else:
+            current_state = self.get_raw_state(creature, enemy, combat_handler)
+
+        return current_state
+
     def initialize(self, creature, combat_handler):
         # Initialize weights if needed
         if self.policy_net is None:
-            enemy = self.determine_enemy(creature=creature, combat_handler=combat_handler)
-            state = combat_handler.get_current_state(creature=creature, enemy=enemy)
+            state = self.get_current_state(creature=creature, combat_handler=combat_handler)
             self.initialize_weights(creature, state)
 
         # Obtain dictionaries translating index to actions and vice versa
@@ -222,9 +257,7 @@ class FunctionApproximation:
 
     def get_best_action(self, state):
         """
-        :param creature:
         :param state:
-        :param report_q:
         :return:
         """
         q_vals = self.policy_net(state).detach()
@@ -241,8 +274,7 @@ class FunctionApproximation:
         :return: action_index
         """
         # Obtain state / actions:
-        enemy = creature.player.strategy.determine_enemy(creature, combat_handler=combat_handler)
-        state = torch.from_numpy(combat_handler.get_current_state(creature, enemy)).float()
+        state = torch.from_numpy(self.get_current_state(creature=creature, combat_handler=combat_handler)).float()
 
         # Sample action indicies:
         eps_thresh = self.policy.get_epsilon(t=self.t)
@@ -328,8 +360,6 @@ class DoubleDQN(FunctionApproximation):
         # Initialize weights
         self.policy_net = torch.nn.Sequential(
             torch.nn.Linear(self.n_states, h1),
-            torch.nn.ReLU(),
-            torch.nn.Linear(h1, h1),
             torch.nn.ReLU(),
             torch.nn.Linear(h1, h1),
             torch.nn.ReLU(),

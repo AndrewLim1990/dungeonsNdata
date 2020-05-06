@@ -1,13 +1,7 @@
 import numpy as np
 import torch
-
-from actions import Attack
 from actions import EndTurn
 from collections import defaultdict
-from collections import Counter
-from utils.dnd_utils import draw_location
-
-TIME_LIMIT = 1500
 
 
 class CombatHandler:
@@ -20,7 +14,7 @@ class CombatHandler:
             * Action
             * Bonus Action
     """
-    def __init__(self, environment, combatants=[]):
+    def __init__(self, environment, time_limit, combatants=[]):
         self.environment = environment
         self.combatants = combatants
         self.turn_order = list()
@@ -29,6 +23,7 @@ class CombatHandler:
         self.current_turn = None
         self.last_known_states = dict()
         self.total_q_val = defaultdict(list)
+        self.time_limit = time_limit
 
     def add_combatant(self, combatant):
         self.combatants.append(combatant)
@@ -45,8 +40,9 @@ class CombatHandler:
         self.current_turn = self.turn_order[0][0]
         self.full_heal_combatants()
         for combatant in self.combatants:
-            enemy = combatant.player.strategy.determine_enemy(combatant, self)
-            self.last_known_states[combatant] = self.get_current_state(combatant, enemy)
+            self.last_known_states[combatant] = combatant.player.strategy.get_current_state(
+                creature=combatant, combat_handler=self
+            )
 
     def roll_combat_initiative(self):
         """
@@ -77,8 +73,7 @@ class CombatHandler:
         num_live_combatants = len([creature for creature in self.combatants if creature.hit_points > 0])
         try:
             leotris = self.get_combatant("Leotris")
-            # exceeded_time_limit = [creature.action_count >= TIME_LIMIT for creature in self.combatants].any()
-            exceeded_time_limit = leotris.action_count >= TIME_LIMIT
+            exceeded_time_limit = leotris.action_count >= self.time_limit
         except IndexError:
             pass
         self.combat_is_over = (num_live_combatants <= 1) or exceeded_time_limit
@@ -96,33 +91,6 @@ class CombatHandler:
             if (target_location == creature.location).all():
                 is_legal = False
         return is_legal
-
-    def get_raw_state(self, creature, enemy):
-        current_state = np.array([[
-            creature.hit_points / creature.max_hit_points,              # creature health
-            enemy.hit_points / enemy.max_hit_points,                    # enemy health
-            creature.location[0] / self.environment.room_width,         # creature x loc
-            creature.location[1] / self.environment.room_length,        # creature y loc
-            enemy.location[0] / self.environment.room_width,            # enemy x loc
-            enemy.location[1] / self.environment.room_length,           # enemy y loc
-            creature.attacks_used,                                      # can attack
-            creature.movement_remaining / creature.speed,               # can move
-            (2 * creature.action_count - TIME_LIMIT) / TIME_LIMIT       # num actions taken
-        ]])
-
-        return current_state
-
-    def get_current_state(self, creature, enemy):
-        creature_hitpoints_idx = 0
-        enemy_hitpoints_idx = 1
-        current_state = self.get_raw_state(creature, enemy)
-
-        is_end_state = (current_state[0][creature_hitpoints_idx] <= 0) or (current_state[0][enemy_hitpoints_idx] <= 0)
-        is_timed_out = current_state[0][-1] >= 1
-        if is_end_state or is_timed_out:
-            return None
-
-        return current_state
 
     def full_heal_combatants(self):
         """
@@ -147,8 +115,7 @@ class CombatHandler:
             for combatant, initiative in self.turn_order:
                 # Update combatants if it gets back to their turn after they ended
                 if (self.last_known_states.get(combatant) is not None) and not is_first_step:
-                    enemy = combatant.player.strategy.determine_enemy(combatant, combat_handler=self)
-                    next_state = self.get_current_state(creature=combatant, enemy=enemy)
+                    next_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
                     combatant.player.strategy.update_step(
                         action=combatant.get_action("end_turn"),
                         creature=combatant,
@@ -166,18 +133,13 @@ class CombatHandler:
                     self.total_q_val[combatant].append(q_val)
 
                     # Perform action (update state, update combat handler)
-                    enemy = combatant.player.strategy.determine_enemy(combatant, combat_handler=self)
-                    current_state = self.get_current_state(
-                        creature=combatant, enemy=enemy
-                    )
+                    current_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
                     combatant.use_action(
                         action,
                         combat_handler=self,
                         target_creature=combatant.sample_enemy(combat_handler=self)
                     )
-                    next_state = self.get_current_state(
-                        creature=combatant, enemy=enemy
-                    )
+                    next_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
                     self.last_known_states[combatant] = next_state
 
                     # Allow combatants to change strategy
@@ -194,8 +156,9 @@ class CombatHandler:
                         loser = [creature for creature in self.combatants if creature.hit_points <= 0]
                         if loser:
                             loser = loser[0]
-                            winner = [creature for creature in self.combatants if creature.hit_points > 0][0]
-                            current_state = self.get_current_state(creature=loser, enemy=winner)
+                            current_state = combatant.player.strategy.get_current_state(
+                                creature=combatant, combat_handler=self
+                            )
 
                             loser.player.strategy.update_step(
                                 loser.get_action("end_turn"),
@@ -214,9 +177,10 @@ class CombatHandler:
 
                 # Combat has ended:
                 if end_now:
-                    lst_state = self.get_raw_state(
+                    lst_state = self.get_combatant("Leotris").player.strategy.get_raw_state(
                         creature=self.get_combatant("Leotris"),
-                        enemy=self.get_combatant("Strahd")
+                        enemy=self.get_combatant("Strahd"),
+                        combat_handler=self
                     )[0]
                     leotris = self.get_combatant("Leotris")
                     end_now = False
