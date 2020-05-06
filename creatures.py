@@ -29,7 +29,8 @@ class Creature:
         self.armor_class = armor_class
         self.speed = speed
         self.movement_remaining = self.speed
-        self.actions = [MoveLeft(), MoveRight(), MoveUp(), MoveDown(), EndTurn()] + actions
+        # self.actions = [MoveLeft(), MoveRight(), MoveUp(), MoveDown(), EndTurn()] + actions
+        self.actions = [EndTurn()] + actions
         self.reactions = reactions
         self.location = location
         self.attacks_allowed = attacks_allowed
@@ -39,11 +40,13 @@ class Creature:
         self.actions_used = 0
         self.bonus_actions_used = 0
         self.symbol = symbol
+        self.action_count = 0
 
     def use_action(self, action, **kwargs):
         """
         Uses action
         """
+        self.action_count += 1
         return action.use(self, **kwargs)
 
     def roll_initiative(self):
@@ -51,6 +54,7 @@ class Creature:
         Roll initiative
         Todo: Add modifier
         """
+        self.action_count = 0
         modifier = 0
         return roll_dice(20) + modifier
 
@@ -104,8 +108,8 @@ class Creature:
         matching_action = matching_actions[0]
         return matching_action
 
-    def initialize(self):
-        self.player.strategy.initialize(creature=self)
+    def initialize(self, combat_handler):
+        self.player.strategy.initialize(creature=self, combat_handler=combat_handler)
 
 
 # Todo: Move into DB
@@ -114,7 +118,7 @@ vampire = Creature(
     name="Strahd",
     hit_points=200,
     armor_class=17,
-    actions=[vampire_bite],
+    actions=[MoveLeft(), MoveRight(), MoveUp(), MoveDown(), vampire_bite],
     location=np.array([5, 5]),
     symbol="@"
 )
@@ -124,7 +128,7 @@ leotris = Creature(
     name="Leotris",
     hit_points=25,
     armor_class=16,
-    actions=[arrow_shot, sword_slash],
+    actions=[MoveLeft(), MoveRight(), MoveUp(), MoveDown(), arrow_shot],
     location=np.array([5, 10]),
     symbol="x"
 )

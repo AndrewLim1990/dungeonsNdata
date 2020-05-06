@@ -8,6 +8,8 @@ from settings import MISSED_ATTACK_SIGNAL
 from utils.dnd_utils import roll_dice
 from utils.dnd_utils import calculate_distance
 
+import numpy as np
+
 
 class Action:
     """

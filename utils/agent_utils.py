@@ -116,10 +116,25 @@ class Memory:
         :param n:
         :return:
         """
-        # all_exp = Experience(*zip(*self.memory))
-        # priorities = np.array(list(all_exp.priority))
-        # priorities = priorities / priorities.sum()
-        # memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities, replace=False)
-        # memories = [self.memory[idx] for idx in memory_indicies]
         memories = random.sample(self.memory, n)
         return memories
+
+    def priority_sample(self, n):
+        """
+        Sample from memory with replacement
+        :param n:
+        :return:
+        """
+        priorities = np.array([exp.priority for exp in self.memory])
+        priorities = priorities / priorities.sum()
+        memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities, replace=False)
+        memories = [self.memory[idx] for idx in memory_indicies]
+
+        return memories
+
+
+def mean_sq_error(target, predicted):
+    sq_error = (predicted - target).pow(2)
+    loss = torch.mean(sq_error)
+
+    return loss

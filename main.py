@@ -35,20 +35,18 @@ def report_win_percentages(winner_list, num_games, combatants, q_vals, last_stat
     print("----------------------\n")
 
 
-
-def intialize_combatants(combatants):
+def intialize_combatants(combatants, combat_handler):
     """
     :param combatants:
     :return:
     """
-    [combatant.initialize() for combatant in combatants]
+    [combatant.initialize(combat_handler) for combatant in combatants]
 
 def main():
     """
     Todo: Provide main documentation/overview
     """
     n_iters = int(1e6)
-    intialize_combatants([leotris, vampire])
 
     winner_list = []
     q_vals = []
@@ -60,6 +58,7 @@ def main():
             environment=square_room,
             combatants=[leotris, vampire]
         )
+        intialize_combatants([leotris, vampire], combat_handler=combat_handler)
         winner, q_val, last_state, num_actions_taken = combat_handler.run()
 
         winner_list.append(winner)
