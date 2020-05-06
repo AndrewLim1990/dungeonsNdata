@@ -104,6 +104,8 @@ class QLearningTabularAgent(TabularAgent):
         best_action = self.get_best_action(creature, state)
 
         # Obtain action via e-greedy policy
+        # Todo: Move self.t into policy
+        # Todo: Rename "policy" to something better
         action = self.policy.sample_policy_action(actions, best_action, self.t)
 
         self.t += 1
@@ -144,7 +146,7 @@ class QLearningTabularAgent(TabularAgent):
         return
 
 
-class DQN:
+class FunctionApproximation:
     def __init__(self, max_training_steps=5e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-4,
                  gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
         self.max_training_steps = max_training_steps
@@ -202,6 +204,11 @@ class DQN:
             state = combat_handler.get_current_state(creature=creature, enemy=enemy)
             self.initialize_weights(creature, state)
 
+        # Obtain dictionaries translating index to actions and vice versa
+        action_indicies = zip(creature.actions, range(self.n_actions))
+        self.action_to_index = {action: index for action, index in action_indicies}
+        self.index_to_action = {index: action for action, index in self.action_to_index.items()}
+
     def initialize_weights(self, creature, state):
         self.n_states = state.shape[1]
         self.n_actions = len(creature.actions)
@@ -211,16 +218,7 @@ class DQN:
         self.policy_net = torch.nn.Sequential(
             torch.nn.Linear(self.n_states, self.n_actions)
         )
-
-        self.target_net = torch.nn.Sequential(
-            torch.nn.Linear(self.n_states, self.n_actions)
-        )
-
-        # Obtain position in feature list
-        action_indicies = zip(creature.actions, range(self.n_actions))
-        self.action_to_index = {action: index for action, index in action_indicies}
-        self.index_to_action = {index: action for action, index in self.action_to_index.items()}
-        return
+        self.target_net = copy.deepcopy(self.policy_net)
 
     def get_best_action(self, state):
         """
@@ -231,20 +229,6 @@ class DQN:
         """
         q_vals = self.policy_net(state).detach()
         action_idx = q_vals.max(1)[1].view(1, 1)
-        return action_idx
-
-    def get_best_action_stochastic(self, state):
-        """
-        :param creature:
-        :param state:
-        :param report_q:
-        :return:
-        """
-        p = self.policy_net(state).detach().numpy()
-        p = 2**p  # np.exp(p)
-        p = p / p.sum()
-        action_idx = np.random.choice(range(p.shape[1]), p=p[0])
-        action_idx = torch.tensor(action_idx).view(1, 1)
         return action_idx
 
     def sample_action(self, creature, combat_handler, return_index=False):
@@ -301,12 +285,6 @@ class DQN:
         predicted_batch = self.policy_net(state_batch).gather(1, action_batch)
         self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
 
-    def calc_error(self, current_state, action_index, reward, next_state):
-        predicted = self.policy_net(current_state).detach().gather(1, action_index)
-        target = self.gamma * self.target_net(next_state).max(1)[0].detach().view(-1, 1) + reward
-        priority = torch.abs(predicted - target).pow(0.7)
-        return priority
-
     def update_step(self, action, creature, current_state, next_state, combat_handler):
         current_state = torch.from_numpy(current_state).float()
         action_index = torch.tensor([[self.action_to_index[action]]])
@@ -332,7 +310,7 @@ class DQN:
         self.training_iteration += 1
 
 
-class DoubleDQN(DQN):
+class DoubleDQN(FunctionApproximation):
     def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=5e-2,
                  gamma=0.99, update_frequency=30000, memory_length=4096, batch_size=128):
         super().__init__(
@@ -367,19 +345,6 @@ class DoubleDQN(DQN):
         self.index_to_action = {index: action for action, index in self.action_to_index.items()}
         return
 
-    def calc_error(self, current_state, action_index, reward, next_state):
-        if next_state is None:
-            evaluation = reward
-        else:
-            next_state = torch.tensor(next_state).float()
-            next_action = self.policy_net(next_state).detach().max(1)[1].view(-1, 1)
-            evaluation = self.target_net(next_state).detach().gather(1, next_action)
-        target = self.gamma * evaluation + reward
-        predicted = self.policy_net(current_state).detach().gather(1, action_index)
-        error = predicted - target
-
-        return error
-
     def learn_from_replay(self):
         # Sample experiences from memory
         batch = self.memory.sample(self.batch_size)
@@ -400,17 +365,4 @@ class DoubleDQN(DQN):
         # Calculate gradients
         target_batch = self.gamma * evaluation_batch + reward_batch
         predicted_batch = self.policy_net(state_batch).gather(1, action_batch)
-        # q_before = self.policy_net(state_batch).detach()
         self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
-        # q_after = self.policy_net(state_batch).detach()
-        # action_name = self.index_to_action[action_batch.numpy()[0][0]].name
-
-        # print("Action: {}".format(action_name))
-        # print("State: {}".format(state_batch))
-        # print("Next State:{}".format(batch.next_state))
-        # print("Reward: {}".format(reward_batch))
-        # print("Predicted: {}".format(actual_batch))
-        # print("Target: {}".format(target_batch))
-        # print("Q Before: {}".format(q_before))
-        # print("Q After: {}".format(q_after))
-        # print("Q Delta: {}\n".format(q_after - q_before))
