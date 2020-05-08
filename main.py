@@ -7,20 +7,16 @@ from utils.agent_utils import calc_win_percentage
 
 import dill
 import numpy as np
-import torch
 
 np.set_printoptions(precision=3)
 np.set_printoptions(suppress=True)
 
-# leotris = dill.load(open("results/model_double_DQN_2.pickle", "rb"))
 
-
-def report_win_percentages(winner_list, num_games, combatants, q_vals, last_states, num_actions_takens):
+def report_win_percentages(winner_list, num_games, combatants, avg_rewards, last_states, num_actions_takens):
     """
     :return: None
     """
     win_percentages = calc_win_percentage(winner_list[-num_games:], combatants)
-    q_vals = torch.tensor(q_vals).tolist()
     last_states = np.around(np.array(last_states), 2)
 
     print("Win percentages: {}\t{}".format(
@@ -28,11 +24,11 @@ def report_win_percentages(winner_list, num_games, combatants, q_vals, last_stat
         leotris.player.strategy.policy.get_epsilon(leotris.player.strategy.t),
     ))
 
-    results = list(zip(winner_list[-num_games:], q_vals, last_states, num_actions_takens))
+    results = list(zip(winner_list[-num_games:], avg_rewards, last_states, num_actions_takens))
     results = sorted(results, key=lambda x: -x[1])
 
-    for winner, q_val, last_state, num_actions_taken in results:
-        print(" {}: {} ({}) \t\t{}".format(winner, round(q_val, 3), last_state, num_actions_taken))
+    for winner, avg_reward, last_state, num_actions_taken in results:
+        print(" {}: {} ({}) \t\t{}".format(winner, avg_reward, last_state, num_actions_taken))
     print("----------------------\n")
 
 
@@ -50,7 +46,7 @@ def main():
     n_iters = int(1e6)
 
     winner_list = []
-    q_vals = []
+    avg_rewards = []
     last_states = []
     num_actions_takens = []
 
@@ -61,10 +57,10 @@ def main():
             time_limit=TIME_LIMIT
         )
         intialize_combatants([leotris, vampire], combat_handler=combat_handler)
-        winner, q_val, last_state, num_actions_taken = combat_handler.run()
+        winner, avg_reward, last_state, num_actions_taken = combat_handler.run()
 
         winner_list.append(winner)
-        q_vals.append(q_val)
+        avg_rewards.append(avg_reward)
         last_states.append(last_state)
         num_actions_takens.append(num_actions_taken)
 
@@ -73,11 +69,11 @@ def main():
                 winner_list=winner_list,
                 num_games=10,
                 combatants=[leotris, vampire],
-                q_vals=q_vals,
+                avg_rewards=avg_rewards,
                 last_states=last_states,
                 num_actions_takens=num_actions_takens
             )
-            q_vals = []
+            avg_rewards = []
             last_states = []
             num_actions_takens = []
 

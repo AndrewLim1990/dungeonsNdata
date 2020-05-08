@@ -1,7 +1,7 @@
-import numpy as np
-import torch
 from actions import EndTurn
 from collections import defaultdict
+
+import numpy as np
 
 
 class CombatHandler:
@@ -110,19 +110,21 @@ class CombatHandler:
         self.initialize_combat()
         end_now = False
         is_first_step = True
+        accumulated_reward = defaultdict(list)
 
         while not self.check_if_combat_is_over():
             for combatant, initiative in self.turn_order:
                 # Update combatants if it gets back to their turn after they ended
                 if (self.last_known_states.get(combatant) is not None) and not is_first_step:
                     next_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
-                    combatant.player.strategy.update_step(
+                    reward = combatant.player.strategy.update_step(
                         action=combatant.get_action("end_turn"),
                         creature=combatant,
                         current_state=self.last_known_states[combatant],
                         next_state=next_state,
                         combat_handler=self
                     )
+                    accumulated_reward[combatant.name].append(reward)
 
                 while True:
                     # Poll for action to use
@@ -144,13 +146,15 @@ class CombatHandler:
 
                     # Allow combatants to change strategy
                     if action != combatant.get_action("end_turn"):
-                        combatant.player.strategy.update_step(
+                        reward = combatant.player.strategy.update_step(
                             action=action,
                             creature=combatant,
                             current_state=current_state,
                             next_state=next_state,
                             combat_handler=self
                         )
+                        accumulated_reward[combatant.name].append(reward)
+
                     if self.check_if_combat_is_over():
                         # Let loser adjust
                         loser = [creature for creature in self.combatants if creature.hit_points <= 0]
@@ -160,13 +164,14 @@ class CombatHandler:
                                 creature=combatant, combat_handler=self
                             )
 
-                            loser.player.strategy.update_step(
+                            reward = loser.player.strategy.update_step(
                                 loser.get_action("end_turn"),
                                 creature=loser,
                                 current_state=self.last_known_states[loser],
                                 next_state=current_state,
                                 combat_handler=self
                             )
+                            accumulated_reward[loser.name].append(reward)
 
                         end_now = True
                         break
@@ -189,11 +194,10 @@ class CombatHandler:
             self.end_of_round_cleanup()
             is_first_step = False
 
-        avg_q_val = torch.tensor(self.total_q_val[leotris]).mean()
-
         remaining_combatants = [creature.name for creature in self.combatants]
         winner = remaining_combatants[0]
         if len(remaining_combatants) > 1:
             winner = "Timeout"
-        # print("Winner: {}".format(winner))
-        return winner, avg_q_val, lst_state, leotris.action_count
+
+        avg_reward = np.sum(accumulated_reward.get("Leotris", [0]))
+        return winner, avg_reward, lst_state, leotris.action_count

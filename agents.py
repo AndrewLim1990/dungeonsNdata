@@ -180,6 +180,7 @@ class FunctionApproximation:
 
         self.policy_net = None
         self.target_net = None
+        self.optimizer = None
         self.memory = Memory(memory_length)
         self.name = "DQN"
         self.batch_size = batch_size
@@ -198,13 +199,18 @@ class FunctionApproximation:
                 enemy = combatant
         return enemy
 
-    @staticmethod
-    def determine_reward(damage_done=0):
+    def determine_reward(self, creature, current_state, next_state, combat_handler):
         """
-        :param damage_done:
+        :param creature:
+        :param current_state:
+        :param next_state:
+        :param combat_handler:
         :return:
         """
-        reward = damage_done - 0.1
+        enemy = self.determine_enemy(creature, combat_handler)
+        raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
+        damage_done = (current_state - raw_next_state)[0][1] * enemy.max_hit_points
+        reward = round(float(damage_done))
         return reward
 
     @staticmethod
@@ -254,6 +260,7 @@ class FunctionApproximation:
             torch.nn.Linear(self.n_states, self.n_actions)
         )
         self.target_net = copy.deepcopy(self.policy_net)
+        self.optimizer = torch.optim.RMSprop(self.policy_net.parameters())
 
     def get_best_action(self, state):
         """
@@ -293,6 +300,16 @@ class FunctionApproximation:
         else:
             return self.index_to_action[action_index.data.tolist()[0][0]], q_val
 
+    # def update_weights(self, predicted_batch, target_batch):
+    #     loss = mean_sq_error(target=target_batch, predicted=predicted_batch)
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #
+    #     # Update weights
+    #     for param in self.policy_net.parameters():
+    #         param.grad.data.clamp_(-1, 1)
+    #     self.optimizer.step()
+
     def update_weights(self, predicted_batch, target_batch):
         loss = mean_sq_error(target=target_batch, predicted=predicted_batch)
         self.policy_net.zero_grad()
@@ -320,13 +337,9 @@ class FunctionApproximation:
     def update_step(self, action, creature, current_state, next_state, combat_handler):
         current_state = torch.from_numpy(current_state).float()
         action_index = torch.tensor([[self.action_to_index[action]]])
-        enemy = self.determine_enemy(creature, combat_handler)
-        damage_done = 0
-        if next_state is not None:
-            damage_done = (current_state - next_state)[0][1] * enemy.max_hit_points
 
         # Obtain reward
-        reward = torch.tensor([[self.determine_reward(damage_done=damage_done)]]).float()
+        reward = torch.tensor([[self.determine_reward(creature, current_state, next_state, combat_handler)]]).float()
 
         # Add to experience replay
         self.memory.add(Experience(current_state, action_index, reward, next_state))
@@ -341,14 +354,17 @@ class FunctionApproximation:
             self.target_net.load_state_dict(self.policy_net.state_dict())
         self.training_iteration += 1
 
+        return reward.data.numpy()[0][0]
+
 
 class DoubleDQN(FunctionApproximation):
-    def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=5e-2,
+    def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-3,
                  gamma=0.99, update_frequency=30000, memory_length=4096, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
         )
         self.name = "double_DQN"
+        self.optimizer = None
 
     def initialize_weights(self, creature, state):
         self.n_states = state.shape[1]
@@ -368,12 +384,7 @@ class DoubleDQN(FunctionApproximation):
             torch.nn.Linear(h1, self.n_actions),
         )
         self.target_net = copy.deepcopy(self.policy_net)
-
-        # Obtain position in feature list
-        action_indicies = zip(creature.actions, range(self.n_actions))
-        self.action_to_index = {action: index for action, index in action_indicies}
-        self.index_to_action = {index: action for action, index in self.action_to_index.items()}
-        return
+        self.optimizer = torch.optim.RMSprop(self.policy_net.parameters())
 
     def learn_from_replay(self):
         # Sample experiences from memory
