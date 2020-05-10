@@ -4,13 +4,10 @@ import numpy as np
 
 
 class Strategy:
-    def determine_enemy(self, creature, combat_handler):
-        enemy = None
-        combatants = combat_handler.combatants
-        for combatant in combatants:
-            if combatant != creature:
-                enemy = combatant
-        return enemy
+    def __init__(self):
+        self.action_to_index = dict()
+        self.index_to_action = dict()
+        self.n_actions = None
 
     def update_step(self, *args, **kwargs):
         pass
@@ -18,8 +15,24 @@ class Strategy:
     def update_strategy(self):
         pass
 
-    def initialize(self, * args, **kwargs):
+    def determine_reward(self, *args, **wargs):
         pass
+
+    @staticmethod
+    def determine_enemy(creature, combat_handler):
+        enemy = None
+        combatants = combat_handler.combatants
+        for combatant in combatants:
+            if combatant != creature:
+                enemy = combatant
+        return enemy
+
+    def initialize(self, creature, combat_handler):
+        # Obtain dictionaries translating index to actions and vice versa
+        self.n_actions = len(creature.actions)
+        action_indicies = zip(creature.actions, range(self.n_actions))
+        self.action_to_index = {action: index for action, index in action_indicies}
+        self.index_to_action = {index: action for action, index in self.action_to_index.items()}
 
 
 class Player:
@@ -90,8 +103,5 @@ class RangeAggression(Strategy):
         return action
 
 
-# hayden = PlayerCharacter(strategy=Tst(), name="Hayden")
 hayden = PlayerCharacter(strategy=DoubleDQN(), name="Hayden")
-# hayden = PlayerCharacter(strategy=RandomStrategy(), name="Hayden")
-# hayden = PlayerCharacter(strategy=RangeAggression(), name="Hayden")
 dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")

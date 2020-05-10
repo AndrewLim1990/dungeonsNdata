@@ -211,7 +211,7 @@ class FunctionApproximation:
         raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
         damage_done = (current_state - raw_next_state)[0][1]
         damage_taken = (current_state - raw_next_state)[0][0]
-        reward = round(float(damage_done) - float(damage_taken), 2) * 100
+        reward = round(float(damage_done)- float(damage_taken), 2) * 100
         return reward
 
     @staticmethod

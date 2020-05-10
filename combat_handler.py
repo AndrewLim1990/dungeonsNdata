@@ -1,7 +1,6 @@
-from actions import EndTurn
 from collections import defaultdict
 
-import numpy as np
+REWARD_INDEX = 2
 
 
 class CombatHandler:
@@ -18,10 +17,10 @@ class CombatHandler:
         self.environment = environment
         self.combatants = combatants
         self.turn_order = list()
-        self.combat_is_over = False
         self.first_visualization = True
-        self.current_turn = None
-        self.last_known_states = dict()
+        self.last_known_current_states = dict()
+        self.last_known_next_states = dict()
+        self.last_known_actions = dict()
         self.total_q_val = defaultdict(list)
         self.time_limit = time_limit
 
@@ -35,12 +34,13 @@ class CombatHandler:
         self.environment = environment
 
     def initialize_combat(self):
-        self.combat_is_over = False
         self.roll_combat_initiative()
-        self.current_turn = self.turn_order[0][0]
         self.full_heal_combatants()
         for combatant in self.combatants:
-            self.last_known_states[combatant] = combatant.player.strategy.get_current_state(
+            self.last_known_current_states[combatant] = combatant.player.strategy.get_current_state(
+                creature=combatant, combat_handler=self
+            )
+            self.last_known_next_states[combatant] = combatant.player.strategy.get_current_state(
                 creature=combatant, combat_handler=self
             )
 
@@ -66,9 +66,8 @@ class CombatHandler:
 
     def end_of_round_cleanup(self):
         self.reset_combat_round_resources()
-        self.remove_dead_combatants()
 
-    def check_if_combat_is_over(self):
+    def combat_is_over(self):
         exceeded_time_limit = False
         num_live_combatants = len([creature for creature in self.combatants if creature.hit_points > 0])
         try:
@@ -76,11 +75,10 @@ class CombatHandler:
             exceeded_time_limit = leotris.action_count >= self.time_limit
         except IndexError:
             pass
-        self.combat_is_over = (num_live_combatants <= 1) or exceeded_time_limit
-        if self.combat_is_over:
-            return True
-        else:
-            return False
+
+        is_over = (num_live_combatants <= 1) or exceeded_time_limit
+
+        return is_over
 
     def check_legal_movement(self, target_location):
         """
@@ -103,100 +101,157 @@ class CombatHandler:
         combatant = [c for c in self.combatants if c.name == name][0]
         return combatant
 
+    def determine_winner(self):
+        creatures_alive = [creature for creature in self.combatants if creature.hit_points > 0]
+        if len(creatures_alive) > 1:
+            winner = "Timeout"
+        else:
+            winner = creatures_alive[0].name
+
+        return winner
+
+    def add_end_turn_sars(self, creature, sars_dict):
+        """
+        :param creature:
+        :return:
+        """
+        next_state = creature.player.strategy.get_current_state(creature=creature, combat_handler=self)
+        current_state = self.last_known_next_states[creature]
+        reward = creature.player.strategy.determine_reward(
+            creature=creature,
+            current_state=current_state,
+            next_state=next_state,
+            combat_handler=self
+        )
+        action = creature.get_action("end_turn")
+        sars = (current_state, action, reward, next_state)
+
+        sars_dict[creature].append(sars)
+
+        return sars_dict
+
+    def add_end_combat_sars(self, sars_dict):
+        """
+        :param creature:
+        :return:
+        """
+        next_state = None
+        for creature in self.combatants:
+            current_state = self.last_known_next_states[creature]
+            if current_state is None:
+                current_state = self.last_known_current_states[creature]
+            action = self.last_known_actions[creature]
+            reward = creature.player.strategy.determine_reward(
+                creature=creature,
+                current_state=current_state,
+                next_state=next_state,
+                combat_handler=self
+            )
+            sars = (current_state, action, reward, next_state)
+            sars_dict[creature].append(sars)
+
+        return sars_dict
+
+    def perform_round_step(self, creature):
+        current_state = creature.player.strategy.get_current_state(creature=creature, combat_handler=self)
+        action = creature.player.strategy.sample_action(creature=creature, combat_handler=self)
+        enemy = creature.sample_enemy(combat_handler=self)
+
+        # Keep track of current_state:
+        self.last_known_current_states[creature] = current_state
+
+        creature.use_action(action=action, target_creature=enemy, combat_handler=self)
+        next_state = creature.player.strategy.get_current_state(creature=creature, combat_handler=self)
+        reward = creature.player.strategy.determine_reward(
+            creature=creature,
+            current_state=current_state,
+            next_state=next_state,
+            combat_handler=self
+        )
+
+        # Keep track of last known state
+        self.last_known_next_states[creature] = next_state
+        self.last_known_actions[creature] = action
+
+        return current_state, action, reward, next_state
+
+    def execute_round(self, round_number):
+        """
+        Todo: Each creature should have its own strategy
+        Todo: Use action should not need extra kwargs (place in action themselves)
+        Todo: use_action should return reward
+        :return:
+        """
+        is_first_round = round_number <= 0
+        sars_dict = defaultdict(list)
+
+        for creature, rolled_initiative in self.turn_order:
+            # Add end_turn action to sars lists
+            if not is_first_round:
+                sars_dict = self.add_end_turn_sars(creature=creature, sars_dict=sars_dict)
+
+            while True:
+                # Poll and perform action:
+                current_state, action, reward, next_state = self.perform_round_step(creature)
+
+                # If over, exit
+                if self.combat_is_over():
+                    sars_dict = self.add_end_combat_sars(sars_dict=sars_dict)
+                    return sars_dict, self.combat_is_over()
+
+                # If ended turn, go to next creature
+                if action.name == "end_turn":
+                    break
+
+                # Add results:
+                sars = (current_state, action, reward, next_state)
+                sars_dict[creature].append(sars)
+
+        return sars_dict, self.combat_is_over()
+
+    def update_strategies(self, combat_is_over, sars_dict):
+        """
+        :return:
+        """
+        for creature, sars_list in sars_dict.items():
+            for current_state, action, reward, next_state in sars_list:
+                creature.player.strategy.update_step(
+                    action=action,
+                    creature=creature,
+                    current_state=current_state,
+                    next_state=next_state,
+                    combat_handler=self
+                )
+
     def run(self):
         """
         Runs Combat
         """
         self.initialize_combat()
-        end_now = False
-        is_first_step = True
-        accumulated_reward = defaultdict(list)
+        combat_is_over = False
+        round_number = 0
 
-        while not self.check_if_combat_is_over():
-            for combatant, initiative in self.turn_order:
-                # Update combatants if it gets back to their turn after they ended
-                if (self.last_known_states.get(combatant) is not None) and not is_first_step:
-                    next_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
-                    reward = combatant.player.strategy.update_step(
-                        action=combatant.get_action("end_turn"),
-                        creature=combatant,
-                        current_state=self.last_known_states[combatant],
-                        next_state=next_state,
-                        combat_handler=self
-                    )
-                    accumulated_reward[combatant.name].append(reward)
+        # Todo: Remove these guys
+        leotris = self.get_combatant("Leotris")
+        strahd = self.get_combatant("Strahd")
+        total_reward = 0
 
-                while True:
-                    # Poll for action to use
-                    action = combatant.player.strategy.sample_action(
-                        creature=combatant,
-                        combat_handler=self
-                    )
-                    a = combatant.name
-                    # Perform action (update state, update combat handler)
-                    current_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
-                    combatant.use_action(
-                        action,
-                        combat_handler=self,
-                        target_creature=combatant.sample_enemy(combat_handler=self)
-                    )
-                    next_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
-                    self.last_known_states[combatant] = next_state
+        while not combat_is_over:
+            # Run one turn per creature
+            sars_dict, combat_is_over = self.execute_round(round_number)
+            for sars in sars_dict[leotris]:
+                total_reward += sars[REWARD_INDEX]
 
-                    # Allow combatants to change strategy
-                    if action != combatant.get_action("end_turn"):
-                        reward = combatant.player.strategy.update_step(
-                            action=action,
-                            creature=combatant,
-                            current_state=current_state,
-                            next_state=next_state,
-                            combat_handler=self
-                        )
-                        accumulated_reward[combatant.name].append(reward)
+            # Let creatures update their strategies
+            self.update_strategies(combat_is_over, sars_dict)
 
-                    if self.check_if_combat_is_over():
-                        # Let loser adjust
-                        loser = [creature for creature in self.combatants if creature.hit_points <= 0]
-                        if loser:
-                            loser = loser[0]
-                            current_state = loser.player.strategy.get_current_state(
-                                creature=loser, combat_handler=self
-                            )
-
-                            reward = loser.player.strategy.update_step(
-                                loser.get_action("end_turn"),
-                                creature=loser,
-                                current_state=self.last_known_states[loser],
-                                next_state=current_state,
-                                combat_handler=self
-                            )
-                            accumulated_reward[loser.name].append(reward)
-
-                        end_now = True
-                        break
-
-                    # End of combatant turn:
-                    if type(action) == EndTurn:
-                        break
-
-                # Combat has ended:
-                if end_now:
-                    lst_state = self.get_combatant("Leotris").player.strategy.get_raw_state(
-                        creature=self.get_combatant("Leotris"),
-                        enemy=self.get_combatant("Strahd"),
-                        combat_handler=self
-                    )[0]
-                    leotris = self.get_combatant("Leotris")
-                    end_now = False
-                    break
-
+            # Heals and resets round resources
             self.end_of_round_cleanup()
-            is_first_step = False
 
-        remaining_combatants = [creature.name for creature in self.combatants]
-        winner = remaining_combatants[0]
-        if len(remaining_combatants) > 1:
-            winner = "Timeout"
+            round_number += 1
 
-        avg_reward = np.sum(accumulated_reward.get("Leotris", [0]))
-        return winner, avg_reward, lst_state, leotris.action_count
+        winner = self.determine_winner()
+        last_state = leotris.player.strategy.get_raw_state(creature=leotris, enemy=strahd, combat_handler=self)
+        num_actions_used = leotris.action_count
+
+        return winner, total_reward, last_state, num_actions_used
