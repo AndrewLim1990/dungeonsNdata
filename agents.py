@@ -209,8 +209,9 @@ class FunctionApproximation:
         """
         enemy = self.determine_enemy(creature, combat_handler)
         raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
-        damage_done = (current_state - raw_next_state)[0][1] * enemy.max_hit_points
-        reward = round(float(damage_done))
+        damage_done = (current_state - raw_next_state)[0][1]
+        damage_taken = (current_state - raw_next_state)[0][0]
+        reward = round(float(damage_done) - float(damage_taken), 2) * 100
         return reward
 
     @staticmethod
@@ -271,13 +272,12 @@ class FunctionApproximation:
         action_idx = q_vals.max(1)[1].view(1, 1)
         return action_idx
 
-    def sample_action(self, creature, combat_handler, return_index=False):
+    def sample_action(self, creature, combat_handler):
         """
         Returns an action or an action_index
 
         :param creature:
         :param combat_handler:
-        :param return_index:
         :return: action_index
         """
         # Obtain state / actions:
@@ -292,13 +292,8 @@ class FunctionApproximation:
             action_index = torch.tensor([[np.random.randint(self.n_actions)]], dtype=torch.long)
         self.t += 1
 
-        q_val = self.policy_net(state)[0][action_index]
-
-        # Returns either action index or action
-        if return_index:
-            return action_index, q_val
-        else:
-            return self.index_to_action[action_index.data.tolist()[0][0]], q_val
+        # Return action
+        return self.index_to_action[action_index.data.tolist()[0][0]]
 
     # def update_weights(self, predicted_batch, target_batch):
     #     loss = mean_sq_error(target=target_batch, predicted=predicted_batch)
@@ -354,11 +349,11 @@ class FunctionApproximation:
             self.target_net.load_state_dict(self.policy_net.state_dict())
         self.training_iteration += 1
 
-        return reward.data.numpy()[0][0]
+        return round(float(reward), 3)
 
 
 class DoubleDQN(FunctionApproximation):
-    def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-3,
+    def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-2,
                  gamma=0.99, update_frequency=30000, memory_length=4096, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size

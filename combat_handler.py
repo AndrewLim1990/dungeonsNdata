@@ -128,12 +128,11 @@ class CombatHandler:
 
                 while True:
                     # Poll for action to use
-                    action, q_val = combatant.player.strategy.sample_action(
+                    action = combatant.player.strategy.sample_action(
                         creature=combatant,
                         combat_handler=self
                     )
-                    self.total_q_val[combatant].append(q_val)
-
+                    a = combatant.name
                     # Perform action (update state, update combat handler)
                     current_state = combatant.player.strategy.get_current_state(creature=combatant, combat_handler=self)
                     combatant.use_action(
@@ -160,8 +159,8 @@ class CombatHandler:
                         loser = [creature for creature in self.combatants if creature.hit_points <= 0]
                         if loser:
                             loser = loser[0]
-                            current_state = combatant.player.strategy.get_current_state(
-                                creature=combatant, combat_handler=self
+                            current_state = loser.player.strategy.get_current_state(
+                                creature=loser, combat_handler=self
                             )
 
                             reward = loser.player.strategy.update_step(

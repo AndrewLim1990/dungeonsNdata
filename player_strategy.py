@@ -61,8 +61,7 @@ class RandomStrategy(Strategy):
     def sample_action(self, creature, combat_handler):
         actions = filter_illegal_actions(creature=creature, actions=creature.actions)
         action = np.random.choice(actions)
-        q_val = 0
-        return action, q_val
+        return action
 
     @staticmethod
     def get_current_state(*args, **kwargs):
