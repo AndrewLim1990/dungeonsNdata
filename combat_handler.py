@@ -1,4 +1,3 @@
-from agents import ROUND_ACTION_LIMIT
 from collections import Counter
 from collections import defaultdict
 
@@ -75,9 +74,8 @@ class CombatHandler:
 
         leotris = self.get_combatant("Leotris")
         exceeded_time_limit = leotris.action_count >= self.time_limit
-        exceeded_action_limit = self.actions_this_round[leotris] >= ROUND_ACTION_LIMIT
 
-        is_over = (num_live_combatants <= 1) or exceeded_time_limit # or exceeded_action_limit
+        is_over = (num_live_combatants <= 1) or exceeded_time_limit
 
         return is_over
 
@@ -133,7 +131,7 @@ class CombatHandler:
 
     def add_end_combat_sars(self, sars_dict):
         """
-        :param creature:
+        :param sars_dict:
         :return:
         """
         next_state = None
@@ -213,7 +211,7 @@ class CombatHandler:
 
         return sars_dict, self.combat_is_over()
 
-    def update_strategies(self, combat_is_over, sars_dict):
+    def update_strategies(self, sars_dict):
         """
         :return:
         """
@@ -241,15 +239,15 @@ class CombatHandler:
         total_reward = 0
 
         while not combat_is_over:
-            # Run one turn per creature
+            # Run one round of combat (one turn per creature)
             sars_dict, combat_is_over = self.execute_round(round_number)
             for sars in sars_dict[leotris]:
                 total_reward += sars[REWARD_INDEX]
 
             # Let creatures update their strategies
-            self.update_strategies(combat_is_over, sars_dict)
+            self.update_strategies(sars_dict)
 
-            # Heals and resets round resources
+            # Resets round resources (Actions used, movement, etc)
             self.end_of_round_cleanup()
 
             round_number += 1

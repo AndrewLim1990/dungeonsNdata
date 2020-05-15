@@ -443,10 +443,6 @@ class DoubleDQN(FunctionApproximation):
         self.policy_net = torch.nn.Sequential(
             torch.nn.Linear(self.n_states, h1),
             torch.nn.ReLU(),
-            # torch.nn.Linear(h1, h1),
-            # torch.nn.ReLU(),
-            # torch.nn.Linear(h1, h1),
-            # torch.nn.ReLU(),
             torch.nn.Linear(h1, self.n_actions),
         )
         self.target_net = copy.deepcopy(self.policy_net)
