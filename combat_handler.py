@@ -1,3 +1,5 @@
+from agents import ROUND_ACTION_LIMIT
+from collections import Counter
 from collections import defaultdict
 
 REWARD_INDEX = 2
@@ -23,6 +25,7 @@ class CombatHandler:
         self.last_known_actions = dict()
         self.total_q_val = defaultdict(list)
         self.time_limit = time_limit
+        self.actions_this_round = Counter()
 
     def add_combatant(self, combatant):
         self.combatants.append(combatant)
@@ -37,10 +40,10 @@ class CombatHandler:
         self.roll_combat_initiative()
         self.full_heal_combatants()
         for combatant in self.combatants:
-            self.last_known_current_states[combatant] = combatant.player.strategy.get_current_state(
+            self.last_known_current_states[combatant] = combatant.strategy.get_current_state(
                 creature=combatant, combat_handler=self
             )
-            self.last_known_next_states[combatant] = combatant.player.strategy.get_current_state(
+            self.last_known_next_states[combatant] = combatant.strategy.get_current_state(
                 creature=combatant, combat_handler=self
             )
 
@@ -68,15 +71,13 @@ class CombatHandler:
         self.reset_combat_round_resources()
 
     def combat_is_over(self):
-        exceeded_time_limit = False
         num_live_combatants = len([creature for creature in self.combatants if creature.hit_points > 0])
-        try:
-            leotris = self.get_combatant("Leotris")
-            exceeded_time_limit = leotris.action_count >= self.time_limit
-        except IndexError:
-            pass
 
-        is_over = (num_live_combatants <= 1) or exceeded_time_limit
+        leotris = self.get_combatant("Leotris")
+        exceeded_time_limit = leotris.action_count >= self.time_limit
+        exceeded_action_limit = self.actions_this_round[leotris] >= ROUND_ACTION_LIMIT
+
+        is_over = (num_live_combatants <= 1) or exceeded_time_limit # or exceeded_action_limit
 
         return is_over
 
@@ -115,9 +116,9 @@ class CombatHandler:
         :param creature:
         :return:
         """
-        next_state = creature.player.strategy.get_current_state(creature=creature, combat_handler=self)
+        next_state = creature.strategy.get_current_state(creature=creature, combat_handler=self)
         current_state = self.last_known_next_states[creature]
-        reward = creature.player.strategy.determine_reward(
+        reward = creature.strategy.determine_reward(
             creature=creature,
             current_state=current_state,
             next_state=next_state,
@@ -140,8 +141,8 @@ class CombatHandler:
             current_state = self.last_known_next_states[creature]
             if current_state is None:
                 current_state = self.last_known_current_states[creature]
-            action = self.last_known_actions[creature]
-            reward = creature.player.strategy.determine_reward(
+            action = self.last_known_actions.get(creature)
+            reward = creature.strategy.determine_reward(
                 creature=creature,
                 current_state=current_state,
                 next_state=next_state,
@@ -153,16 +154,18 @@ class CombatHandler:
         return sars_dict
 
     def perform_round_step(self, creature):
-        current_state = creature.player.strategy.get_current_state(creature=creature, combat_handler=self)
-        action = creature.player.strategy.sample_action(creature=creature, combat_handler=self)
+        current_state = creature.strategy.get_current_state(creature=creature, combat_handler=self)
+        action = creature.strategy.sample_action(creature=creature, combat_handler=self)
         enemy = creature.sample_enemy(combat_handler=self)
 
         # Keep track of current_state:
         self.last_known_current_states[creature] = current_state
 
+        # Use the action:
         creature.use_action(action=action, target_creature=enemy, combat_handler=self)
-        next_state = creature.player.strategy.get_current_state(creature=creature, combat_handler=self)
-        reward = creature.player.strategy.determine_reward(
+
+        next_state = creature.strategy.get_current_state(creature=creature, combat_handler=self)
+        reward = creature.strategy.determine_reward(
             creature=creature,
             current_state=current_state,
             next_state=next_state,
@@ -184,6 +187,7 @@ class CombatHandler:
         """
         is_first_round = round_number <= 0
         sars_dict = defaultdict(list)
+        self.actions_this_round = Counter()
 
         for creature, rolled_initiative in self.turn_order:
             # Add end_turn action to sars lists
@@ -215,7 +219,7 @@ class CombatHandler:
         """
         for creature, sars_list in sars_dict.items():
             for current_state, action, reward, next_state in sars_list:
-                creature.player.strategy.update_step(
+                creature.strategy.update_step(
                     action=action,
                     creature=creature,
                     current_state=current_state,
@@ -251,7 +255,7 @@ class CombatHandler:
             round_number += 1
 
         winner = self.determine_winner()
-        last_state = leotris.player.strategy.get_raw_state(creature=leotris, enemy=strahd, combat_handler=self)
+        last_state = leotris.strategy.get_raw_state(creature=leotris, enemy=strahd, combat_handler=self)
         num_actions_used = leotris.action_count
 
         return winner, total_reward, last_state, num_actions_used

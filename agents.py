@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 TIME_LIMIT = 1500
+ROUND_ACTION_LIMIT = 50
 
 
 class Agent:
@@ -199,21 +200,6 @@ class FunctionApproximation:
                 enemy = combatant
         return enemy
 
-    def determine_reward(self, creature, current_state, next_state, combat_handler):
-        """
-        :param creature:
-        :param current_state:
-        :param next_state:
-        :param combat_handler:
-        :return:
-        """
-        enemy = self.determine_enemy(creature, combat_handler)
-        raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
-        damage_done = (current_state - raw_next_state)[0][1]
-        damage_taken = (current_state - raw_next_state)[0][0]
-        reward = round(float(damage_done)- float(damage_taken), 2) * 100
-        return reward
-
     @staticmethod
     def get_raw_state(creature, enemy, combat_handler):
         raw_state = np.array([[
@@ -225,6 +211,7 @@ class FunctionApproximation:
             enemy.location[1] / combat_handler.environment.room_length,             # enemy y loc
             creature.attacks_used,                                                  # attacks used
             creature.movement_remaining / creature.speed,                           # remaining movement
+            # combat_handler.actions_this_round[creature] / ROUND_ACTION_LIMIT,       # actions used this round
             (2 * creature.action_count - TIME_LIMIT) / TIME_LIMIT                   # num actions taken
         ]])
         return raw_state
@@ -351,9 +338,34 @@ class FunctionApproximation:
 
         return round(float(reward), 3)
 
+    def determine_reward(self, creature, current_state, next_state, combat_handler):
+        """
+        :param creature:
+        :param current_state:
+        :param next_state:
+        :param combat_handler:
+        :return:
+        """
+        reward = 0
+        # if next_state is None:
+        #     is_dead = creature.hit_points < 0
+        #     is_too_many_round_actions = combat_handler.actions_this_round[creature] >= ROUND_ACTION_LIMIT
+        #     is_too_many_combat_actions = creature.action_count >= TIME_LIMIT
+        #     if not(is_dead or is_too_many_combat_actions):  # or is_too_many_round_actions):
+        #         reward = 100
+
+        enemy = self.determine_enemy(creature, combat_handler)
+        raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
+        damage_done = (current_state - raw_next_state)[0][1]
+        # damage_taken = (current_state - raw_next_state)[0][0] / 8
+        # reward = round(float(damage_done) - float(damage_taken), 2) * 100
+        reward += round(float(damage_done), 2) * 100
+
+        return reward
+
 
 class DoubleDQN(FunctionApproximation):
-    def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-2,
+    def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-3,
                  gamma=0.99, update_frequency=30000, memory_length=4096, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
@@ -372,10 +384,10 @@ class DoubleDQN(FunctionApproximation):
         self.policy_net = torch.nn.Sequential(
             torch.nn.Linear(self.n_states, h1),
             torch.nn.ReLU(),
-            torch.nn.Linear(h1, h1),
-            torch.nn.ReLU(),
-            torch.nn.Linear(h1, h1),
-            torch.nn.ReLU(),
+            # torch.nn.Linear(h1, h1),
+            # torch.nn.ReLU(),
+            # torch.nn.Linear(h1, h1),
+            # torch.nn.ReLU(),
             torch.nn.Linear(h1, self.n_actions),
         )
         self.target_net = copy.deepcopy(self.policy_net)

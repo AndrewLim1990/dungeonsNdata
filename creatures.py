@@ -1,12 +1,12 @@
+from agents import DoubleDQN
+from player_strategy import RandomStrategy
 from actions import vampire_bite
-from actions import sword_slash
 from actions import arrow_shot
 from actions import EndTurn
 from actions import MoveLeft
 from actions import MoveRight
 from actions import MoveUp
 from actions import MoveDown
-from copy import deepcopy
 from player_strategy import dungeon_master
 from player_strategy import hayden
 from utils.dnd_utils import roll_dice
@@ -19,7 +19,7 @@ class Creature:
     Represents a creature
     """
     def __init__(
-            self, player, name, hit_points, armor_class, location,
+            self, player, name, hit_points, armor_class, location, strategy,
             speed=30, actions=[], reactions=[], attacks_allowed=1,
             spells_allowed=1, symbol="x"):
         self.player = player
@@ -29,7 +29,7 @@ class Creature:
         self.armor_class = armor_class
         self.speed = speed
         self.movement_remaining = self.speed
-        # self.actions = [MoveLeft(), MoveRight(), MoveUp(), MoveDown(), EndTurn()] + actions
+        self.strategy = strategy
         self.actions = [EndTurn()] + actions
         self.reactions = reactions
         self.location = location
@@ -47,6 +47,8 @@ class Creature:
         Uses action
         """
         self.action_count += 1
+        combat_handler = kwargs['combat_handler']
+        combat_handler.actions_this_round[self] += 1
         return action.use(self, **kwargs)
 
     def roll_initiative(self):
@@ -109,7 +111,7 @@ class Creature:
         return matching_action
 
     def initialize(self, combat_handler):
-        self.player.strategy.initialize(creature=self, combat_handler=combat_handler)
+        self.strategy.initialize(creature=self, combat_handler=combat_handler)
 
 
 # Todo: Move into DB
@@ -120,7 +122,8 @@ vampire = Creature(
     armor_class=17,
     actions=[MoveLeft(), MoveRight(), MoveUp(), MoveDown(), vampire_bite],
     location=np.array([5, 5]),
-    symbol="@"
+    symbol="@",
+    strategy=RandomStrategy()
 )
 
 leotris = Creature(
@@ -130,5 +133,6 @@ leotris = Creature(
     armor_class=16,
     actions=[MoveLeft(), MoveRight(), MoveUp(), MoveDown(), arrow_shot],
     location=np.array([5, 10]),
-    symbol="x"
+    symbol="x",
+    strategy=DoubleDQN()
 )

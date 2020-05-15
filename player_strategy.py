@@ -36,9 +36,8 @@ class Strategy:
 
 
 class Player:
-    def __init__(self, name, strategy, creatures=[]):
+    def __init__(self, name, creatures=[]):
         self.name = name
-        self.strategy = strategy
         self.creatures = creatures
 
     def get_creatures(self, combat_handler):
@@ -103,5 +102,5 @@ class RangeAggression(Strategy):
         return action
 
 
-hayden = PlayerCharacter(strategy=DoubleDQN(), name="Hayden")
-dungeon_master = PlayerCharacter(strategy=RandomStrategy(), name="Andrew")
+hayden = PlayerCharacter(name="Hayden")
+dungeon_master = PlayerCharacter(name="Andrew")
