@@ -1,5 +1,5 @@
 from agents import DoubleDQN
-from player_strategy import RandomStrategy
+from agents import RandomStrategy
 from actions import vampire_bite
 from actions import arrow_shot
 from actions import EndTurn
@@ -7,8 +7,8 @@ from actions import MoveLeft
 from actions import MoveRight
 from actions import MoveUp
 from actions import MoveDown
-from player_strategy import dungeon_master
-from player_strategy import hayden
+from players import dungeon_master
+from players import hayden
 from utils.dnd_utils import roll_dice
 
 import numpy as np

@@ -13,16 +13,76 @@ TIME_LIMIT = 1500
 ROUND_ACTION_LIMIT = 50
 
 
-class Agent:
+class Strategy:
     def __init__(self):
+        self.action_to_index = dict()
+        self.index_to_action = dict()
+        self.n_actions = None
+
+    def update_step(self, *args, **kwargs):
         pass
 
+    def update_strategy(self):
+        pass
 
-class TabularAgent(Agent):
-    pass
+    def determine_reward(self, *args, **wargs):
+        pass
+
+    @staticmethod
+    def determine_enemy(creature, combat_handler):
+        enemy = None
+        combatants = combat_handler.combatants
+        for combatant in combatants:
+            if combatant != creature:
+                enemy = combatant
+        return enemy
+
+    def initialize(self, creature, combat_handler):
+        # Obtain dictionaries translating index to actions and vice versa
+        self.n_actions = len(creature.actions)
+        action_indicies = zip(creature.actions, range(self.n_actions))
+        self.action_to_index = {action: index for action, index in action_indicies}
+        self.index_to_action = {index: action for action, index in self.action_to_index.items()}
 
 
-class QLearningTabularAgent(TabularAgent):
+class RandomStrategy(Strategy):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.name = "random"
+
+    def sample_action(self, creature, combat_handler):
+        actions = filter_illegal_actions(creature=creature, actions=creature.actions)
+        action = np.random.choice(actions)
+        return action
+
+    @staticmethod
+    def get_current_state(*args, **kwargs):
+        return None
+
+    @staticmethod
+    def get_raw_state(*args, **kwargs):
+        return [None]
+
+
+class RangeAggression(Strategy):
+    def __init__(self, *args, **kwargs):
+        self.name = "ranged_aggression"
+
+    def sample_action(self, creature, combat_handler):
+        """
+        Always uses "Arrow Shot"
+        :param creature:
+        :param combat_handler:
+        :return:
+        """
+        actions = [creature.get_action("Arrow Shot"), creature.get_action("end_turn")]
+
+        action = np.random.choice(actions, p=[0.95, 0.05])
+
+        return action
+
+
+class QLearningTabularAgent(Strategy):
     def __init__(self, max_training_steps=2e8, epsilon_start=0.01, epsilon_end=0.001, alpha=1e-2,
                  gamma=0.999):
         """
@@ -159,7 +219,7 @@ class QLearningTabularAgent(TabularAgent):
         return
 
 
-class FunctionApproximation:
+class FunctionApproximation(Strategy):
     def __init__(self, max_training_steps=5e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-4,
                  gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
         self.max_training_steps = max_training_steps
@@ -210,8 +270,7 @@ class FunctionApproximation:
             enemy.location[0] / combat_handler.environment.room_width,              # enemy x loc
             enemy.location[1] / combat_handler.environment.room_length,             # enemy y loc
             creature.attacks_used,                                                  # attacks used
-            creature.movement_remaining / creature.speed,                           # remaining movement
-            # combat_handler.actions_this_round[creature] / ROUND_ACTION_LIMIT,       # actions used this round
+            creature.movement_remaining / creature.speed,                           # remaining movement\
             (2 * creature.action_count - TIME_LIMIT) / TIME_LIMIT                   # num actions taken
         ]])
         return raw_state
