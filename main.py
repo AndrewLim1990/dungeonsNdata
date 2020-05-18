@@ -80,7 +80,7 @@ def main():
         # Save tabular Q
         if (i + 1) % 100 == 0:
             dill.dump(winner_list, open("results/winner_list_{}.pickle".format(leotris.strategy.name), "wb"))
-            dill.dump(leotris, open("results/model_{}_3.pickle".format(leotris.strategy.name), "wb"))
+            dill.dump(leotris.strategy.policy_net, open("results/model_{}.pickle".format(leotris.strategy.name), "wb"))
 
 
 if __name__ == "__main__":

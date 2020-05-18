@@ -1,5 +1,6 @@
 from agents import DoubleDQN
 from agents import RandomStrategy
+from agents import SARSA
 from actions import vampire_bite
 from actions import arrow_shot
 from actions import EndTurn
@@ -134,5 +135,5 @@ leotris = Creature(
     actions=[MoveLeft(), MoveRight(), MoveUp(), MoveDown(), arrow_shot],
     location=np.array([5, 10]),
     symbol="x",
-    strategy=DoubleDQN()
+    strategy=SARSA()
 )

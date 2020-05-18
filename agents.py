@@ -4,6 +4,8 @@ from utils.agent_utils import Experience
 from utils.agent_utils import filter_illegal_actions
 from utils.agent_utils import mean_sq_error
 from utils.agent_utils import Memory
+from utils.agent_utils import PrioritizedMemory
+from utils.agent_utils import SARSAExperience
 
 import copy
 import numpy as np
@@ -318,16 +320,21 @@ class FunctionApproximation(Strategy):
         action_idx = q_vals.max(1)[1].view(1, 1)
         return action_idx
 
-    def sample_action(self, creature, combat_handler):
+    def sample_action(self, creature, combat_handler, increment_counter=True, state=None):
         """
         Returns an action or an action_index
 
         :param creature:
         :param combat_handler:
+        :param increment_counter:
+        :param state:
         :return: action_index
         """
         # Obtain state / actions:
-        state = torch.from_numpy(self.get_current_state(creature=creature, combat_handler=combat_handler)).float()
+        if state is None:
+            state = torch.from_numpy(self.get_current_state(creature=creature, combat_handler=combat_handler)).float()
+        else:
+            state = torch.from_numpy(state).float()
 
         # Sample action indicies:
         eps_thresh = self.policy.get_epsilon(t=self.t)
@@ -336,20 +343,12 @@ class FunctionApproximation(Strategy):
             action_index = self.get_best_action(state)
         else:
             action_index = torch.tensor([[np.random.randint(self.n_actions)]], dtype=torch.long)
-        self.t += 1
+
+        if increment_counter:
+            self.t += 1
 
         # Return action
         return self.index_to_action[action_index.data.tolist()[0][0]]
-
-    # def update_weights(self, predicted_batch, target_batch):
-    #     loss = mean_sq_error(target=target_batch, predicted=predicted_batch)
-    #     self.optimizer.zero_grad()
-    #     loss.backward()
-    #
-    #     # Update weights
-    #     for param in self.policy_net.parameters():
-    #         param.grad.data.clamp_(-1, 1)
-    #     self.optimizer.step()
 
     def update_weights(self, predicted_batch, target_batch):
         loss = mean_sq_error(target=target_batch, predicted=predicted_batch)
@@ -360,6 +359,8 @@ class FunctionApproximation(Strategy):
         with torch.no_grad():
             for param in self.policy_net.parameters():
                 param -= self.alpha * param.grad
+
+        return loss
 
     def learn_from_replay(self):
         # Sample experiences from memory
@@ -406,12 +407,6 @@ class FunctionApproximation(Strategy):
         :return:
         """
         reward = 0
-        # if next_state is None:
-        #     is_dead = creature.hit_points < 0
-        #     is_too_many_round_actions = combat_handler.actions_this_round[creature] >= ROUND_ACTION_LIMIT
-        #     is_too_many_combat_actions = creature.action_count >= TIME_LIMIT
-        #     if not(is_dead or is_too_many_combat_actions):  # or is_too_many_round_actions):
-        #         reward = 100
 
         enemy = self.determine_enemy(creature, combat_handler)
         raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
@@ -469,3 +464,102 @@ class DoubleDQN(FunctionApproximation):
         target_batch = self.gamma * evaluation_batch + reward_batch
         predicted_batch = self.policy_net(state_batch).gather(1, action_batch)
         self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
+
+
+class SARSA(FunctionApproximation):
+    """
+    SARSA
+    """
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-4,
+                 gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
+        super().__init__(
+            max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
+        )
+        self.memory = PrioritizedMemory(memory_length, experience_type=SARSAExperience)
+        self.name = 'SARSA'
+
+    def initialize_weights(self, creature, state):
+        self.n_states = state.shape[1]
+        self.n_actions = len(creature.actions)
+
+        h1 = self.n_actions
+
+        # Initialize weights
+        self.policy_net = torch.nn.Sequential(
+            torch.nn.Linear(self.n_states, h1),
+            torch.nn.ReLU(),
+            torch.nn.Linear(h1, self.n_actions),
+        )
+
+    def update_step(self, action, creature, current_state, next_state, combat_handler):
+        current_state = torch.from_numpy(current_state).float()
+        action_index = torch.tensor([[self.action_to_index[action]]])
+
+        # Obtain reward
+        reward = torch.tensor([[self.determine_reward(creature, current_state, next_state, combat_handler)]]).float()
+
+        # Obtain next action
+        next_action_index = None
+        if next_state is not None:
+            next_action = self.sample_action(
+                creature=creature,
+                combat_handler=combat_handler,
+                increment_counter=False,
+                state=next_state
+            )
+            next_action_index = creature.strategy.action_to_index[next_action]
+            next_action_index = torch.tensor([[next_action_index]])
+
+        # Add to experience replay
+        self.memory.add(SARSAExperience(current_state, action_index, reward, next_state, next_action_index))
+
+        # Update weights:
+        if len(self.memory) >= self.memory.memory_length:
+            self.learn_from_replay()
+
+        return round(float(reward), 3)
+
+    def learn_from_replay(self):
+        # Sample experiences from memory
+        batch, indicies = self.memory.sample(self.batch_size)
+        batch = SARSAExperience(*zip(*batch))
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)))
+        evaluation_batch = torch.zeros((self.batch_size, 1))
+
+        # Todo: reuse non_final_mask for selection below
+        # Todo: try to convert to tensor earlier when added to memory
+        if non_final_mask.sum() >= 1:
+            non_final_next_states = torch.cat([torch.tensor(s).float() for s in batch.next_state if s is not None])
+            non_final_next_actions = torch.tensor([a for a in batch.next_action if a is not None]).view(-1, 1)
+            non_final_evaluation_batch = self.policy_net(non_final_next_states).gather(1, non_final_next_actions)
+            evaluation_batch[non_final_mask] = non_final_evaluation_batch
+
+        # Calculate gradients
+        target_batch = self.gamma * evaluation_batch + reward_batch
+        predicted_batch = self.policy_net(state_batch).gather(1, action_batch)
+        loss = self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
+
+        # Update priorities
+        priorities = (loss + self.memory.epsilon) ** self.alpha
+        self.memory.update_priorities(indicies=indicies, priorities=priorities)
+
+    def determine_reward(self, creature, current_state, next_state, combat_handler):
+        """
+        :param creature:
+        :param current_state:
+        :param next_state:
+        :param combat_handler:
+        :return:
+        """
+        reward = 0
+        if next_state is None:
+            is_dead = creature.hit_points < 0
+            is_too_many_combat_actions = creature.action_count >= TIME_LIMIT
+            if not(is_dead or is_too_many_combat_actions):  # or is_too_many_round_actions):
+                reward = 100
+
+        return reward

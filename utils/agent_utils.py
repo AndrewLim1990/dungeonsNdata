@@ -2,6 +2,7 @@ from actions import Attack
 from actions import Move
 from collections import Counter
 from collections import namedtuple
+from itertools import compress
 
 import numpy as np
 import random
@@ -89,13 +90,15 @@ def filter_illegal_actions(creature, actions):
 
 
 Experience = namedtuple("Experience", ("state", "action", "reward", "next_state"))
+SARSAExperience = namedtuple("Experience", ("state", "action", "reward", "next_state", "next_action"))
 
 
 class Memory:
-    def __init__(self, memory_length):
+    def __init__(self, memory_length, experience_type=Experience):
         self.memory_length = memory_length
         self.memory = list()
         self.idx = 0
+        self.experience_type = experience_type
 
     def __len__(self):
         return len(self.memory)
@@ -103,10 +106,10 @@ class Memory:
     def add(self, experience):
         is_under_max_length = len(self.memory) < self.memory_length
         if is_under_max_length:
-            self.memory.append(Experience(*experience))
+            self.memory.append(self.experience_type(*experience))
         else:
             self.idx = self.idx % self.memory_length
-            self.memory[self.idx] = Experience(*experience)
+            self.memory[self.idx] = self.experience_type(*experience)
             self.idx += 1
             pass
 
@@ -119,18 +122,36 @@ class Memory:
         memories = random.sample(self.memory, n)
         return memories
 
-    def priority_sample(self, n):
-        """
-        Sample from memory with replacement
-        :param n:
-        :return:
-        """
-        priorities = np.array([exp.priority for exp in self.memory])
-        priorities = priorities / priorities.sum()
-        memory_indicies = np.random.choice(range(len(self.memory)), n, p=priorities, replace=False)
-        memories = [self.memory[idx] for idx in memory_indicies]
 
-        return memories
+class PrioritizedMemory(Memory):
+    def __init__(self, memory_length, experience_type=Experience, alpha=0.6, epsilon=1e-6):
+        super().__init__(memory_length, experience_type)
+        self.priorities = np.zeros(self.memory_length, dtype=np.float32)
+        self.alpha = alpha
+        self.epsilon = epsilon
+
+    def add(self, experience):
+        is_under_max_length = len(self.memory) < self.memory_length
+        if is_under_max_length:
+            self.memory.append(self.experience_type(*experience))
+        else:
+            self.idx = self.idx % self.memory_length
+            self.memory[self.idx] = self.experience_type(*experience)
+
+        max_priority = self.priorities.max() if self.memory else 1.0
+        self.priorities[self.idx] = max_priority
+        self.idx += 1
+
+    def sample(self, n):
+        prob = self.priorities / self.priorities.sum()
+
+        indicies = np.random.choice(self.memory_length, n, p=prob)
+        memories = np.array(self.memory)[indicies].tolist()
+
+        return memories, indicies
+
+    def update_priorities(self, indicies, priorities):
+        self.priorities[indicies] = priorities
 
 
 def mean_sq_error(target, predicted):

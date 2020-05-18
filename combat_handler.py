@@ -178,7 +178,6 @@ class CombatHandler:
 
     def execute_round(self, round_number):
         """
-        Todo: Each creature should have its own strategy
         Todo: Use action should not need extra kwargs (place in action themselves)
         Todo: use_action should return reward
         :return:
