@@ -333,8 +333,6 @@ class FunctionApproximation(Strategy):
         # Obtain state / actions:
         if state is None:
             state = torch.from_numpy(self.get_current_state(creature=creature, combat_handler=combat_handler)).float()
-        else:
-            state = torch.from_numpy(state).float()
 
         # Sample action indicies:
         eps_thresh = self.policy.get_epsilon(t=self.t)
@@ -493,6 +491,7 @@ class SARSA(FunctionApproximation):
 
     def update_step(self, action, creature, current_state, next_state, combat_handler):
         current_state = torch.from_numpy(current_state).float()
+        next_state = torch.from_numpy(next_state).float() if next_state is not None else None
         action_index = torch.tensor([[self.action_to_index[action]]])
 
         # Obtain reward
@@ -533,7 +532,7 @@ class SARSA(FunctionApproximation):
         # Todo: reuse non_final_mask for selection below
         # Todo: try to convert to tensor earlier when added to memory
         if non_final_mask.sum() >= 1:
-            non_final_next_states = torch.cat([torch.tensor(s).float() for s in batch.next_state if s is not None])
+            non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
             non_final_next_actions = torch.tensor([a for a in batch.next_action if a is not None]).view(-1, 1)
             non_final_evaluation_batch = self.policy_net(non_final_next_states).gather(1, non_final_next_actions)
             evaluation_batch[non_final_mask] = non_final_evaluation_batch
@@ -541,10 +540,10 @@ class SARSA(FunctionApproximation):
         # Calculate gradients
         target_batch = self.gamma * evaluation_batch + reward_batch
         predicted_batch = self.policy_net(state_batch).gather(1, action_batch)
-        loss = self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
+        self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
 
         # Update priorities
-        priorities = (loss + self.memory.epsilon) ** self.alpha
+        priorities = ((predicted_batch - target_batch) ** 2 + self.memory.epsilon) ** self.memory.alpha
         self.memory.update_priorities(indicies=indicies, priorities=priorities)
 
     def determine_reward(self, creature, current_state, next_state, combat_handler):
@@ -559,7 +558,7 @@ class SARSA(FunctionApproximation):
         if next_state is None:
             is_dead = creature.hit_points < 0
             is_too_many_combat_actions = creature.action_count >= TIME_LIMIT
-            if not(is_dead or is_too_many_combat_actions):  # or is_too_many_round_actions):
+            if not(is_dead or is_too_many_combat_actions):
                 reward = 100
 
         return reward

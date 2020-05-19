@@ -2,7 +2,7 @@ from actions import Attack
 from actions import Move
 from collections import Counter
 from collections import namedtuple
-from itertools import compress
+from operator import itemgetter
 
 import numpy as np
 import random
@@ -131,6 +131,8 @@ class PrioritizedMemory(Memory):
         self.epsilon = epsilon
 
     def add(self, experience):
+        max_priority = self.priorities.max() if self.memory else 1.0
+
         is_under_max_length = len(self.memory) < self.memory_length
         if is_under_max_length:
             self.memory.append(self.experience_type(*experience))
@@ -138,20 +140,18 @@ class PrioritizedMemory(Memory):
             self.idx = self.idx % self.memory_length
             self.memory[self.idx] = self.experience_type(*experience)
 
-        max_priority = self.priorities.max() if self.memory else 1.0
         self.priorities[self.idx] = max_priority
         self.idx += 1
 
     def sample(self, n):
         prob = self.priorities / self.priorities.sum()
-
         indicies = np.random.choice(self.memory_length, n, p=prob)
-        memories = np.array(self.memory)[indicies].tolist()
+        memories = list(itemgetter(*indicies)(self.memory))
 
         return memories, indicies
 
     def update_priorities(self, indicies, priorities):
-        self.priorities[indicies] = priorities
+        self.priorities[indicies.tolist()] = priorities.detach().data.numpy().reshape(-1)
 
 
 def mean_sq_error(target, predicted):
