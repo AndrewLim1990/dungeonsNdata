@@ -2,6 +2,7 @@ from actions import Attack
 from actions import Move
 from collections import Counter
 from collections import namedtuple
+from itertools import compress
 from operator import itemgetter
 
 import numpy as np
@@ -159,3 +160,10 @@ def mean_sq_error(target, predicted):
     loss = torch.mean(sq_error)
 
     return loss
+
+
+def filter_out_final_states(batch_data, non_final_mask):
+    non_final_next_states = list(batch_data)
+    non_final_next_states = list(compress(non_final_next_states, non_final_mask.tolist()))
+
+    return non_final_next_states

@@ -2,6 +2,7 @@ from collections import defaultdict
 from utils.agent_utils import EGreedyPolicy
 from utils.agent_utils import Experience
 from utils.agent_utils import filter_illegal_actions
+from utils.agent_utils import filter_out_final_states
 from utils.agent_utils import mean_sq_error
 from utils.agent_utils import Memory
 from utils.agent_utils import PrioritizedMemory
@@ -529,11 +530,13 @@ class SARSA(FunctionApproximation):
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)))
         evaluation_batch = torch.zeros((self.batch_size, 1))
 
-        # Todo: reuse non_final_mask for selection below
-        # Todo: try to convert to tensor earlier when added to memory
         if non_final_mask.sum() >= 1:
-            non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
-            non_final_next_actions = torch.tensor([a for a in batch.next_action if a is not None]).view(-1, 1)
+            non_final_next_states = torch.cat(
+                filter_out_final_states(batch_data=batch.next_state, non_final_mask=non_final_mask)
+            )
+            non_final_next_actions = torch.tensor(
+                filter_out_final_states(batch_data=batch.next_action, non_final_mask=non_final_mask)
+            ).view(-1, 1)
             non_final_evaluation_batch = self.policy_net(non_final_next_states).gather(1, non_final_next_actions)
             evaluation_batch[non_final_mask] = non_final_evaluation_batch
 
