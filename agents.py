@@ -349,8 +349,8 @@ class FunctionApproximation(Strategy):
         # Return action
         return self.index_to_action[action_index.data.tolist()[0][0]]
 
-    def update_weights(self, predicted_batch, target_batch):
-        loss = mean_sq_error(target=target_batch, predicted=predicted_batch)
+    def update_weights(self, predicted_batch, target_batch, emphasis_weights=None):
+        loss = mean_sq_error(target=target_batch, predicted=predicted_batch, emphasis_weights=emphasis_weights)
         self.policy_net.zero_grad()
         loss.backward()
 
@@ -469,8 +469,8 @@ class SARSA(FunctionApproximation):
     """
     SARSA
     """
-    def __init__(self, max_training_steps=5e6, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-4,
-                 gamma=0.999, update_frequency=5e4, memory_length=1024, batch_size=128):
+    def __init__(self, max_training_steps=1e5, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-4,
+                 gamma=0.9, update_frequency=5e4, memory_length=16834, batch_size=1024):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
         )
@@ -521,7 +521,7 @@ class SARSA(FunctionApproximation):
 
     def learn_from_replay(self):
         # Sample experiences from memory
-        batch, indicies = self.memory.sample(self.batch_size)
+        batch, indicies, emphasis_weights = self.memory.sample(self.batch_size)
         batch = SARSAExperience(*zip(*batch))
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
@@ -543,7 +543,11 @@ class SARSA(FunctionApproximation):
         # Calculate gradients
         target_batch = self.gamma * evaluation_batch + reward_batch
         predicted_batch = self.policy_net(state_batch).gather(1, action_batch)
-        self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
+        self.update_weights(
+            predicted_batch=predicted_batch,
+            target_batch=target_batch,
+            emphasis_weights=emphasis_weights
+        )
 
         # Update priorities
         priorities = ((predicted_batch - target_batch) ** 2 + self.memory.epsilon) ** self.memory.alpha
@@ -557,7 +561,8 @@ class SARSA(FunctionApproximation):
         :param combat_handler:
         :return:
         """
-        reward = 0
+        reward = -0.01
+
         if next_state is None:
             is_dead = creature.hit_points < 0
             is_too_many_combat_actions = creature.action_count >= TIME_LIMIT

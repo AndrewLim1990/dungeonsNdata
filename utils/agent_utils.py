@@ -125,10 +125,11 @@ class Memory:
 
 
 class PrioritizedMemory(Memory):
-    def __init__(self, memory_length, experience_type=Experience, alpha=0.6, epsilon=1e-6):
+    def __init__(self, memory_length, experience_type=Experience, alpha=0.6, epsilon=1e-6, beta=0.4):
         super().__init__(memory_length, experience_type)
         self.priorities = np.zeros(self.memory_length, dtype=np.float32)
         self.alpha = alpha
+        self.beta = beta
         self.epsilon = epsilon
 
     def add(self, experience):
@@ -149,14 +150,22 @@ class PrioritizedMemory(Memory):
         indicies = np.random.choice(self.memory_length, n, p=prob)
         memories = list(itemgetter(*indicies)(self.memory))
 
-        return memories, indicies
+        weights = (self.memory_length * prob[indicies]) ** (-self.beta)
+        weights /= weights
+        weights = torch.tensor(weights)
+
+        return memories, indicies, weights
 
     def update_priorities(self, indicies, priorities):
         self.priorities[indicies.tolist()] = priorities.detach().data.numpy().reshape(-1)
 
 
-def mean_sq_error(target, predicted):
+def mean_sq_error(target, predicted, emphasis_weights=None):
     sq_error = (predicted - target).pow(2)
+
+    if emphasis_weights is not None:
+        sq_error = sq_error * emphasis_weights
+
     loss = torch.mean(sq_error)
 
     return loss
