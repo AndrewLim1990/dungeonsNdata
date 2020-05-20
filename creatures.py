@@ -135,5 +135,5 @@ leotris = Creature(
     actions=[MoveLeft(), MoveRight(), MoveUp(), MoveDown(), arrow_shot],
     location=np.array([5, 10]),
     symbol="x",
-    strategy=SARSA()
+    strategy=DoubleDQN()
 )

@@ -245,7 +245,7 @@ class FunctionApproximation(Strategy):
         self.policy_net = None
         self.target_net = None
         self.optimizer = None
-        self.memory = Memory(memory_length)
+        self.memory = PrioritizedMemory(memory_length)
         self.name = "DQN"
         self.batch_size = batch_size
 
@@ -377,6 +377,7 @@ class FunctionApproximation(Strategy):
 
     def update_step(self, action, creature, current_state, next_state, combat_handler):
         current_state = torch.from_numpy(current_state).float()
+        next_state = torch.from_numpy(next_state).float() if next_state is not None else None
         action_index = torch.tensor([[self.action_to_index[action]]])
 
         # Obtain reward
@@ -408,23 +409,28 @@ class FunctionApproximation(Strategy):
         reward = 0
 
         enemy = self.determine_enemy(creature, combat_handler)
+
+        if next_state is None:
+            enemy_dead = enemy.hit_points < 0
+            if enemy_dead:
+                reward = 50
+
         raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
         damage_done = (current_state - raw_next_state)[0][1]
-        # damage_taken = (current_state - raw_next_state)[0][0] / 8
-        # reward = round(float(damage_done) - float(damage_taken), 2) * 100
         reward += round(float(damage_done), 2) * 100
 
         return reward
 
 
 class DoubleDQN(FunctionApproximation):
-    def __init__(self, max_training_steps=1e6, epsilon_start=0.3, epsilon_end=0.05, alpha=1e-3,
-                 gamma=0.99, update_frequency=30000, memory_length=4096, batch_size=128):
+    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-3,
+                 gamma=0.99, update_frequency=30000, memory_length=16834, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
         )
         self.name = "double_DQN"
         self.optimizer = None
+        self.memory = PrioritizedMemory(memory_length, experience_type=Experience)
 
     def initialize_weights(self, creature, state):
         self.n_states = state.shape[1]
@@ -436,15 +442,16 @@ class DoubleDQN(FunctionApproximation):
         # Initialize weights
         self.policy_net = torch.nn.Sequential(
             torch.nn.Linear(self.n_states, h1),
-            torch.nn.ReLU(),
-            torch.nn.Linear(h1, self.n_actions),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(h1, h1),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(h1, self.n_actions, bias=False),
         )
         self.target_net = copy.deepcopy(self.policy_net)
-        self.optimizer = torch.optim.RMSprop(self.policy_net.parameters())
 
     def learn_from_replay(self):
         # Sample experiences from memory
-        batch = self.memory.sample(self.batch_size)
+        batch, indicies, emphasis_weights = self.memory.sample(self.batch_size)
         batch = Experience(*zip(*batch))
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
@@ -454,7 +461,9 @@ class DoubleDQN(FunctionApproximation):
         evaluation_batch = torch.zeros((self.batch_size, 1))
 
         if non_final_mask.sum() >= 1:
-            non_final_next_states = torch.cat([torch.tensor(s).float() for s in batch.next_state if s is not None])
+            non_final_next_states = torch.cat(
+                filter_out_final_states(batch_data=batch.next_state, non_final_mask=non_final_mask)
+            )
             selected_actions = self.policy_net(non_final_next_states).max(1)[1].view(-1, 1)
             non_final_evaluation_batch = self.target_net(non_final_next_states).detach().gather(1, selected_actions)
             evaluation_batch[non_final_mask] = non_final_evaluation_batch
@@ -462,7 +471,15 @@ class DoubleDQN(FunctionApproximation):
         # Calculate gradients
         target_batch = self.gamma * evaluation_batch + reward_batch
         predicted_batch = self.policy_net(state_batch).gather(1, action_batch)
-        self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
+        self.update_weights(
+            predicted_batch=predicted_batch,
+            target_batch=target_batch,
+            emphasis_weights=emphasis_weights
+        )
+
+        # Update priorities
+        priorities = ((predicted_batch - target_batch) ** 2 + self.memory.epsilon) ** self.memory.alpha
+        self.memory.update_priorities(indicies=indicies, priorities=priorities)
 
 
 class SARSA(FunctionApproximation):

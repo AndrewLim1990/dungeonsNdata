@@ -91,7 +91,7 @@ def filter_illegal_actions(creature, actions):
 
 
 Experience = namedtuple("Experience", ("state", "action", "reward", "next_state"))
-SARSAExperience = namedtuple("Experience", ("state", "action", "reward", "next_state", "next_action"))
+SARSAExperience = namedtuple("SARSAExperience", ("state", "action", "reward", "next_state", "next_action"))
 
 
 class Memory:
@@ -152,7 +152,7 @@ class PrioritizedMemory(Memory):
 
         weights = (self.memory_length * prob[indicies]) ** (-self.beta)
         weights /= weights
-        weights = torch.tensor(weights)
+        weights = torch.tensor(weights).view(-1, 1)
 
         return memories, indicies, weights
 
