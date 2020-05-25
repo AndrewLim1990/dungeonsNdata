@@ -4,6 +4,7 @@ from collections import Counter
 from collections import namedtuple
 from itertools import compress
 from operator import itemgetter
+from torch.distributions import Categorical
 
 import numpy as np
 import random
@@ -176,3 +177,76 @@ def filter_out_final_states(batch_data, non_final_mask):
     non_final_next_states = list(compress(non_final_next_states, non_final_mask.tolist()))
 
     return non_final_next_states
+
+
+class DuelingNet(torch.nn.Module):
+    def __init__(self, n_features, n_outputs, n_hidden_units):
+        super(DuelingNet, self).__init__()
+        self.layer_1 = torch.nn.Linear(n_features, n_hidden_units)
+
+        self.value_layer_1 = torch.nn.Linear(n_hidden_units, n_hidden_units)
+        self.value_layer_2 = torch.nn.Linear(n_hidden_units, 1)
+
+        self.advantage_layer_1 = torch.nn.Linear(n_hidden_units, n_hidden_units)
+        self.advantage_layer_2 = torch.nn.Linear(n_hidden_units, n_outputs)
+
+        self.relu = torch.nn.ReLU()
+
+    def forward(self, state):
+        layer_1_output = self.layer_1(state)
+        layer_1_output = self.relu(layer_1_output)
+
+        value_output = self.value_layer_1(layer_1_output)
+        value_output = self.relu(value_output)
+        value_output = self.value_layer_2(value_output)
+
+        advantage_output = self.advantage_layer_1(layer_1_output)
+        advantage_output = self.relu(advantage_output)
+        advantage_output = self.advantage_layer_2(advantage_output)
+
+        q_output = value_output + advantage_output - advantage_output.mean(dim=1, keepdim=True)
+
+        return q_output
+
+
+class ActorCritic(torch.nn.Module):
+    def __init__(self, n_features, n_outputs, n_hidden_units):
+        """
+        Todo: Research to see if Actor and Critic should share some layers
+        Todo: Look into initialization
+        :param n_features:
+        :param n_outputs:
+        :param n_hidden_units:
+        """
+        super(ActorCritic, self).__init__()
+
+        # Actor
+        self.actor_layer = torch.nn.Sequential(
+            torch.nn.Linear(n_features, n_hidden_units),
+            torch.nn.ReLU(),
+            torch.nn.Linear(n_hidden_units, n_outputs),
+            torch.nn.Softmax(dim=-1)
+        )
+
+        # Critic
+        self.critic_layer = torch.nn.Sequential(
+            torch.nn.Linear(n_features, n_hidden_units),
+            torch.nn.ReLU(),
+            torch.nn.Linear(n_hidden_units, 1)
+        )
+
+    def forward(self, state):
+        actor_output = self.actor_layer(state)
+        value = self.critic_layer(state)
+        dist = Categorical(actor_output)
+
+        return dist, value
+
+    def evaluate(self, state, action_index):
+        actor_output = self.actor_layer(state)
+        dist = Categorical(actor_output)
+        entropy = dist.entropy().mean()
+        log_probs = dist.log_prob(action_index.view(-1))
+        value = self.critic_layer(state)
+
+        return log_probs, value, entropy

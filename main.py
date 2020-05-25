@@ -7,6 +7,7 @@ from utils.agent_utils import calc_win_percentage
 
 import dill
 import numpy as np
+import torch
 
 np.set_printoptions(precision=3)
 np.set_printoptions(suppress=True)
@@ -17,7 +18,7 @@ def report_win_percentages(winner_list, num_games, combatants, total_rewards, la
     :return: None
     """
     win_percentages = calc_win_percentage(winner_list[-num_games:], combatants)
-    last_states = np.around(np.array(last_states), 2)
+    last_states = torch.cat(last_states).data.numpy()
 
     print("Win percentages: {}\t{}".format(
         win_percentages,
@@ -78,7 +79,7 @@ def main():
             num_actions_takens = []
 
         # Save tabular Q
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 10 == 0:
             dill.dump(winner_list, open("results/winner_list_{}.pickle".format(leotris.strategy.name), "wb"))
             dill.dump(leotris.strategy.policy_net, open("results/model_{}.pickle".format(leotris.strategy.name), "wb"))
             dill.dump(total_rewards, open('results/reward_list_{}.pickle'.format(leotris.strategy.name), "wb"))

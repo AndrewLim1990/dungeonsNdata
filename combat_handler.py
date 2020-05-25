@@ -1,5 +1,6 @@
 from collections import Counter
 from collections import defaultdict
+import torch
 
 REWARD_INDEX = 2
 
@@ -116,6 +117,7 @@ class CombatHandler:
         """
         next_state = creature.strategy.get_current_state(creature=creature, combat_handler=self)
         current_state = self.last_known_next_states[creature]
+
         reward = creature.strategy.determine_reward(
             creature=creature,
             current_state=current_state,
@@ -123,7 +125,17 @@ class CombatHandler:
             combat_handler=self
         )
         action = creature.get_action("end_turn")
-        sars = (current_state, action, reward, next_state)
+
+        # Todo: Move the code block below. Remove usage of policy net.
+        action_index = torch.tensor(creature.strategy.action_to_index[action])
+        if creature.strategy.name == 'PPO':
+            dist, value = creature.strategy.policy_net(current_state)
+            log_prob = dist.log_prob(action_index)
+        else:
+            log_prob = None
+            value = None
+
+        sars = (current_state, action, reward, next_state, log_prob, value)
 
         sars_dict[creature].append(sars)
 
@@ -146,14 +158,24 @@ class CombatHandler:
                 next_state=next_state,
                 combat_handler=self
             )
-            sars = (current_state, action, reward, next_state)
+
+            # Todo: Move the code block below. Remove usage of policy net.
+            if creature.strategy.name == 'PPO':
+                action_index = torch.tensor(creature.strategy.action_to_index[action])
+                dist, value = creature.strategy.policy_net(current_state)
+                log_prob = dist.log_prob(action_index)
+            else:
+                log_prob = None
+                value = None
+
+            sars = (current_state, action, reward, next_state, log_prob, value)
             sars_dict[creature].append(sars)
 
         return sars_dict
 
     def perform_round_step(self, creature):
         current_state = creature.strategy.get_current_state(creature=creature, combat_handler=self)
-        action = creature.strategy.sample_action(creature=creature, combat_handler=self)
+        action, log_prob, value = creature.strategy.sample_action(creature=creature, combat_handler=self)
         enemy = creature.sample_enemy(combat_handler=self)
 
         # Keep track of current_state:
@@ -174,7 +196,7 @@ class CombatHandler:
         self.last_known_next_states[creature] = next_state
         self.last_known_actions[creature] = action
 
-        return current_state, action, reward, next_state
+        return current_state, action, reward, next_state, log_prob, value
 
     def execute_round(self, round_number):
         """
@@ -193,7 +215,7 @@ class CombatHandler:
 
             while True:
                 # Poll and perform action:
-                current_state, action, reward, next_state = self.perform_round_step(creature)
+                current_state, action, reward, next_state, log_prob, value = self.perform_round_step(creature)
 
                 # If over, exit
                 if self.combat_is_over():
@@ -205,7 +227,7 @@ class CombatHandler:
                     break
 
                 # Add results:
-                sars = (current_state, action, reward, next_state)
+                sars = (current_state, action, reward, next_state, log_prob, value)
                 sars_dict[creature].append(sars)
 
         return sars_dict, self.combat_is_over()
@@ -215,7 +237,7 @@ class CombatHandler:
         :return:
         """
         for creature, sars_list in sars_dict.items():
-            for current_state, action, reward, next_state in sars_list:
+            for current_state, action, reward, next_state, log_prob, value in sars_list:
                 creature.strategy.update_step(
                     action=action,
                     creature=creature,
@@ -231,6 +253,7 @@ class CombatHandler:
         self.initialize_combat()
         combat_is_over = False
         round_number = 0
+        trajectory_dict = defaultdict(list)
 
         # Todo: Remove these guys
         leotris = self.get_combatant("Leotris")
@@ -240,8 +263,11 @@ class CombatHandler:
         while not combat_is_over:
             # Run one round of combat (one turn per creature)
             sars_dict, combat_is_over = self.execute_round(round_number)
-            for sars in sars_dict[leotris]:
-                total_reward += sars[REWARD_INDEX]
+            for creature, sars_list in sars_dict.items():
+                if creature == leotris:
+                    for sars in sars_list:
+                        total_reward += sars[REWARD_INDEX]
+                trajectory_dict[creature] += sars_list
 
             # Let creatures update their strategies
             self.update_strategies(sars_dict)
@@ -251,6 +277,11 @@ class CombatHandler:
 
             round_number += 1
 
+        # Monte carlo updates:
+        for creature in self.combatants:
+            creature.strategy.update_step_trajectory(trajectory_dict[creature])
+
+        # For reporting
         winner = self.determine_winner()
         last_state = leotris.strategy.get_raw_state(creature=leotris, enemy=strahd, combat_handler=self)
         num_actions_used = leotris.action_count
