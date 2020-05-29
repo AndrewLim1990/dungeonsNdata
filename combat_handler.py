@@ -126,17 +126,15 @@ class CombatHandler:
         )
         action = creature.get_action("end_turn")
 
-        # Todo: Move the code block below. Remove usage of policy net.
-        action_index = torch.tensor(creature.strategy.action_to_index[action])
-        if creature.strategy.name == 'PPO':
-            dist, value = creature.strategy.policy_net(current_state)
-            log_prob = dist.log_prob(action_index)
-        else:
-            log_prob = None
-            value = None
+        # Evaluate state value and probability of action given state
+        log_prob, value = creature.strategy.evaluate_state_and_action(
+            creature=creature,
+            combat_handler=self,
+            state=current_state,
+            action=action,
+        )
 
         sars = (current_state, action, reward, next_state, log_prob, value)
-
         sars_dict[creature].append(sars)
 
         return sars_dict
@@ -147,6 +145,9 @@ class CombatHandler:
         :return:
         """
         next_state = None
+        log_prob = None
+        value = None
+
         for creature in self.combatants:
             current_state = self.last_known_next_states[creature]
             if current_state is None:
@@ -159,14 +160,13 @@ class CombatHandler:
                 combat_handler=self
             )
 
-            # Todo: Move the code block below. Remove usage of policy net.
-            if creature.strategy.name == 'PPO':
-                action_index = torch.tensor(creature.strategy.action_to_index[action])
-                dist, value = creature.strategy.policy_net(current_state)
-                log_prob = dist.log_prob(action_index)
-            else:
-                log_prob = None
-                value = None
+            # Evaluate state value and probability of action given state
+            log_prob, value = creature.strategy.evaluate_state_and_action(
+                creature=creature,
+                combat_handler=self,
+                state=current_state,
+                action=action
+            )
 
             sars = (current_state, action, reward, next_state, log_prob, value)
             sars_dict[creature].append(sars)

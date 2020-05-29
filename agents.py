@@ -52,6 +52,9 @@ class Strategy:
         self.action_to_index = {action: index for action, index in action_indicies}
         self.index_to_action = {index: action for action, index in self.action_to_index.items()}
 
+    def evaluate_state_and_action(self, *args, **kwargs):
+        return None, None
+
 
 class RandomStrategy(Strategy):
     def __init__(self, *args, **kwargs):
@@ -685,7 +688,7 @@ class MCDoubleDuelingDQN(DoubleDuelingDQN):
 
 
 class PPO(FunctionApproximation):
-    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-4,
+    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-2,
                  gamma=0.99, update_frequency=30000, memory_length=16834, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
@@ -734,10 +737,29 @@ class PPO(FunctionApproximation):
         # Return action
         return action, log_prob, value
 
+    def evaluate_state_and_action(self, creature, combat_handler, state, action):
+        """
+        Obtain:
+           - the probability of selection `action_index` when in input state 'state'
+           - the value of the being in input state `state`
+        :param creature:
+        :param combat_handler:
+        :param action:
+        :param state:
+        :return:
+        """
+        # Obtain state and action index:
+        action_index = torch.tensor(self.action_to_index[action])
+        if state is None:
+            state = self.get_current_state(creature=creature, combat_handler=combat_handler)
+
+        dist, value = self.policy_net(state)
+        log_prob = dist.log_prob(action_index)
+        return log_prob, value
+
     def get_gae(self, trajectory, lmbda=0.95):
         """
         :param trajectory:
-        :param values:
         :param lmbda:
         :return:
         """
@@ -768,10 +790,11 @@ class PPO(FunctionApproximation):
             if is_terminal:
                 discounted_reward = 0
             discounted_reward = reward + self.gamma * discounted_reward
-            discounted_rewards.insert(0, discounted_reward)
+            discounted_rewards.insert(0, [discounted_reward])
+
+        discounted_rewards = torch.tensor(discounted_rewards)
 
         return discounted_rewards
-
 
     @staticmethod
     def select_random_batch(current_states, actions, log_probs,returns, advantages, mini_batch_size):
@@ -792,9 +815,9 @@ class PPO(FunctionApproximation):
         :param clip_val:
         :return:
         """
-        returns = self.get_gae(trajectory)  # Possiblly replace with g_t
-        values = torch.tensor([[traj[VALUE_INDEX]] for traj in trajectory])
-        advantages = returns - values
+        returns = self.get_gae(trajectory)
+        old_values = torch.tensor([[traj[VALUE_INDEX]] for traj in trajectory])
+        advantages = returns - old_values
 
         current_states, actions, rewards, next_states, old_log_probs, values = list(zip(*trajectory))
         current_states = torch.cat(current_states)
@@ -817,7 +840,7 @@ class PPO(FunctionApproximation):
             batch_current_state = batch_current_state.detach()
             batch_action_indicies = batch_action_indicies.detach()
 
-            new_log_probs, value, entropy = self.policy_net.evaluate(
+            new_log_probs, new_values, entropy = self.policy_net.evaluate(
                 batch_current_state,
                 batch_action_indicies
             )
@@ -830,7 +853,7 @@ class PPO(FunctionApproximation):
 
             # Calculate loss for critic
             sampled_returns = batch_returns.detach()
-            critic_loss = (value - sampled_returns).pow(2).mean()
+            critic_loss = (new_values - sampled_returns).pow(2).mean()
 
             # Credit: https://github.com/higgsfield/RL-Adventure-2/blob/master/3.ppo.ipynb
             overall_loss = 0.5 * critic_loss + actor_loss - 0.001 * entropy
