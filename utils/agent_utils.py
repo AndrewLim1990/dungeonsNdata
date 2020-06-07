@@ -10,6 +10,9 @@ import numpy as np
 import random
 import torch
 
+Experience = namedtuple("Experience", ("state", "action", "reward", "next_state"))
+SARSAExperience = namedtuple("SARSAExperience", ("state", "action", "reward", "next_state", "next_action"))
+
 
 class EGreedyPolicy:
     """
@@ -89,10 +92,6 @@ def filter_illegal_actions(creature, actions):
         actions = [action for action in actions if Attack not in classlookup(type(action)) + [type(action)]]
 
     return actions
-
-
-Experience = namedtuple("Experience", ("state", "action", "reward", "next_state"))
-SARSAExperience = namedtuple("SARSAExperience", ("state", "action", "reward", "next_state", "next_action"))
 
 
 class Memory:

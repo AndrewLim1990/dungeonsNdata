@@ -161,14 +161,18 @@ class CombatHandler:
             )
 
             # Evaluate state value and probability of action given state
-            log_prob, value = creature.strategy.evaluate_state_and_action(
+            evaluation = creature.strategy.evaluate_state_and_action(
                 creature=creature,
                 combat_handler=self,
                 state=current_state,
                 action=action
             )
+            if evaluation is None:
+                sars = None
+            else:
+                log_prob, value = evaluation
+                sars = (current_state, action, reward, next_state, log_prob, value)
 
-            sars = (current_state, action, reward, next_state, log_prob, value)
             sars_dict[creature].append(sars)
 
         return sars_dict
@@ -237,14 +241,15 @@ class CombatHandler:
         :return:
         """
         for creature, sars_list in sars_dict.items():
-            for current_state, action, reward, next_state, log_prob, value in sars_list:
-                creature.strategy.update_step(
-                    action=action,
-                    creature=creature,
-                    current_state=current_state,
-                    next_state=next_state,
-                    combat_handler=self
-                )
+            if sars_list != [None]:
+                for current_state, action, reward, next_state, log_prob, value in sars_list:
+                    creature.strategy.update_step(
+                        action=action,
+                        creature=creature,
+                        current_state=current_state,
+                        next_state=next_state,
+                        combat_handler=self
+                    )
 
     def run(self):
         """
@@ -266,7 +271,10 @@ class CombatHandler:
             for creature, sars_list in sars_dict.items():
                 if creature == leotris:
                     for sars in sars_list:
-                        total_reward += sars[REWARD_INDEX]
+                        reward = 0
+                        if sars is not None:
+                            reward = sars[REWARD_INDEX]
+                        total_reward += reward
                 trajectory_dict[creature] += sars_list
 
             # Let creatures update their strategies

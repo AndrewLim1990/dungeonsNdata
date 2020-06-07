@@ -19,11 +19,7 @@ def report_win_percentages(winner_list, num_games, combatants, total_rewards, la
     """
     win_percentages = calc_win_percentage(winner_list[-num_games:], combatants)
     last_states = torch.cat(last_states).data.numpy()
-
-    print("Win percentages: {}\t{}".format(
-        win_percentages,
-        leotris.strategy.policy.get_epsilon(leotris.strategy.t),
-    ))
+    print("Win percentages: {}\t".format(win_percentages))
 
     results = list(zip(winner_list[-num_games:], total_rewards[-num_games:], last_states, num_actions_takens))
     results = sorted(results, key=lambda x: -x[1])

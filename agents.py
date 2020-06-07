@@ -16,6 +16,7 @@ import torch
 TIME_LIMIT = 1500
 ROUND_ACTION_LIMIT = 50
 VALUE_INDEX = -1
+NUM_ATTACKS_USED = 6
 
 
 class Strategy:
@@ -31,10 +32,21 @@ class Strategy:
         pass
 
     def determine_reward(self, *args, **wargs):
-        pass
+        return 0
 
     def update_step_trajectory(self, *args, **wargs):
         pass
+
+    def get_current_state(self, creature, combat_handler):
+        enemy = self.determine_enemy(creature, combat_handler)
+        is_exceeded_time_limit = creature.action_count >= TIME_LIMIT
+
+        if not(creature.is_alive()) or not(enemy.is_alive()) or is_exceeded_time_limit:
+            current_state = None
+        else:
+            current_state = self.get_raw_state(creature, enemy, combat_handler)
+
+        return current_state
 
     @staticmethod
     def determine_enemy(creature, combat_handler):
@@ -44,6 +56,22 @@ class Strategy:
             if combatant != creature:
                 enemy = combatant
         return enemy
+
+    @staticmethod
+    def get_raw_state(creature, enemy, combat_handler):
+        raw_state = np.array([[
+            creature.hit_points / creature.max_hit_points,                          # creature health
+            enemy.hit_points / enemy.max_hit_points,                                # enemy health
+            creature.location[0] / combat_handler.environment.room_width,           # creature x loc
+            creature.location[1] / combat_handler.environment.room_length,          # creature y loc
+            enemy.location[0] / combat_handler.environment.room_width,              # enemy x loc
+            enemy.location[1] / combat_handler.environment.room_length,             # enemy y loc
+            creature.attacks_used,                                                  # attacks used
+            creature.movement_remaining / creature.speed,                           # remaining movement
+            (2 * creature.action_count - TIME_LIMIT) / TIME_LIMIT                   # num actions taken
+        ]])
+        raw_state = torch.from_numpy(raw_state).float()
+        return raw_state
 
     def initialize(self, creature, combat_handler):
         # Obtain dictionaries translating index to actions and vice versa
@@ -66,14 +94,6 @@ class RandomStrategy(Strategy):
         action = np.random.choice(actions)
         return action, None, None
 
-    @staticmethod
-    def get_current_state(*args, **kwargs):
-        return None
-
-    @staticmethod
-    def get_raw_state(*args, **kwargs):
-        return [None]
-
 
 class RangeAggression(Strategy):
     def __init__(self, *args, **kwargs):
@@ -81,14 +101,22 @@ class RangeAggression(Strategy):
 
     def sample_action(self, creature, combat_handler):
         """
-        Always uses "Arrow Shot"
+        Always uses "Arrow Shot" if action available
         :param creature:
         :param combat_handler:
         :return:
         """
-        actions = [creature.get_action("Arrow Shot"), creature.get_action("end_turn")]
-
-        action = np.random.choice(actions, p=[0.95, 0.05])
+        enemy = self.determine_enemy(creature=creature, combat_handler=combat_handler)
+        current_state = self.get_raw_state(
+            creature=creature,
+            enemy=enemy,
+            combat_handler=combat_handler
+        )
+        num_attacks_used = current_state[0][NUM_ATTACKS_USED]
+        if num_attacks_used < 1:
+            action = creature.get_action("Arrow Shot")
+        else:
+            action = creature.get_action("end_turn")
 
         return action, None, None
 
@@ -273,33 +301,6 @@ class FunctionApproximation(Strategy):
             if combatant != creature:
                 enemy = combatant
         return enemy
-
-    @staticmethod
-    def get_raw_state(creature, enemy, combat_handler):
-        raw_state = np.array([[
-            creature.hit_points / creature.max_hit_points,                          # creature health
-            enemy.hit_points / enemy.max_hit_points,                                # enemy health
-            creature.location[0] / combat_handler.environment.room_width,           # creature x loc
-            creature.location[1] / combat_handler.environment.room_length,          # creature y loc
-            enemy.location[0] / combat_handler.environment.room_width,              # enemy x loc
-            enemy.location[1] / combat_handler.environment.room_length,             # enemy y loc
-            creature.attacks_used,                                                  # attacks used
-            creature.movement_remaining / creature.speed,                           # remaining movement\
-            (2 * creature.action_count - TIME_LIMIT) / TIME_LIMIT                   # num actions taken
-        ]])
-        raw_state = torch.from_numpy(raw_state).float()
-        return raw_state
-
-    def get_current_state(self, creature, combat_handler):
-        enemy = self.determine_enemy(creature, combat_handler)
-        is_exceeded_time_limit = creature.action_count >= TIME_LIMIT
-
-        if not(creature.is_alive()) or not(enemy.is_alive()) or is_exceeded_time_limit:
-            current_state = None
-        else:
-            current_state = self.get_raw_state(creature, enemy, combat_handler)
-
-        return current_state
 
     def initialize(self, creature, combat_handler):
         # Initialize weights if needed
@@ -688,7 +689,7 @@ class MCDoubleDuelingDQN(DoubleDuelingDQN):
 
 
 class PPO(FunctionApproximation):
-    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-2,
+    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=5e-4,
                  gamma=0.99, update_frequency=30000, memory_length=16834, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
@@ -749,7 +750,16 @@ class PPO(FunctionApproximation):
         :return:
         """
         # Obtain state and action index:
-        action_index = torch.tensor(self.action_to_index[action])
+        action_index = self.action_to_index.get(action)
+
+        # Check if creature hadn't taken any actions.
+        if action_index is None:
+            return
+
+        # Convert to tensor
+        action_index = torch.tensor(action_index)
+
+        # Check if end of combat state
         if state is None:
             state = self.get_current_state(creature=creature, combat_handler=combat_handler)
 
@@ -815,6 +825,8 @@ class PPO(FunctionApproximation):
         :param clip_val:
         :return:
         """
+        if trajectory == [None]:
+            return
         returns = self.get_gae(trajectory)
         old_values = torch.tensor([[traj[VALUE_INDEX]] for traj in trajectory])
         advantages = returns - old_values

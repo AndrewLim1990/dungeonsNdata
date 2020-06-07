@@ -2,6 +2,7 @@ from agents import DoubleDQN
 from agents import DoubleDuelingDQN
 from agents import MCDoubleDuelingDQN
 from agents import PPO
+from agents import RangeAggression
 from agents import RandomStrategy
 from agents import SARSA
 from actions import vampire_bite
