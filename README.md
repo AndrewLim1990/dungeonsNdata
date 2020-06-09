@@ -45,19 +45,26 @@ This section provides a brief overview of Dungeons & Dragons rules and mechanics
             * `damage_dice`: 3d12
             * `damage_bonus`: +10
 
-### Combat Handler (This documentation is a work in progress):
+### [Combat Handler](combat_handler.py) (This documentation is a work in progress):
 
-1. Combat is [initialized]()
-2. A [round is executed]()
-    1. While an [EndTurn]() action has not been sampled from the creature:
-        1. The current state is observed (`current_state`) and saved
-        2. An [action is sampled]() from the creature based off of it's strategy and saved (ex: [PPO]())
-        3. An [action is used]()
-        4. The resulting state is observed (`next_state`) and saved
-        5. A [reward is determined]() and saved
-3. Once a round has finished execution, all characters [update their strategies]() from saved states, actions, and rewards
+1. Combat is initialized
+    * Initiative is rolled
+    * Health is set to full (subject to change in the future)
+    * Last "known states" are initialized
+2. A round of combat is executed
+    1. A `creature` is selected based off of it's rolled initiative
+    2. While an "`EndTurn`" action has not been sampled from the selected creature:
+        1. The `current_state` of the creature is observed and saved to be used later for learning
+        2. The `creature` is prompted to select an `action` based off of it's strategy (ex: [PPO]())
+        3. The chosen `action` is saved to be later used for learning
+        3. The selected `action` is used
+        4. The resulting state is observed (`next_state`) and saved for later learning
+        5. A `reward` value is determined and saved for later learning
+    3. Return to step 2.1 untill all `creature`s have had a turn
+3. Once a round has finished execution, all characters [update their strategies]() from saved `states`, `actions`, and `rewards`
 4. If combat is not over, return to step 2
 5. Once combat is over and a winner is determined, allow all creatures to updated based off of the entire combat sequence (trajectory that has reached a terminal state)
+6. Repeat from step 1 `N` number of times
 
 ### Results:
 #### Random Actions:
@@ -65,4 +72,5 @@ This section provides a brief overview of Dungeons & Dragons rules and mechanics
 
 #### PPO:
 * The figure below shows the win % in the case where `Strahd` takes random actions and `Leotris` follows a proximal policy optimization strategy.
+
 ![PPO results](results/PPO.png)
