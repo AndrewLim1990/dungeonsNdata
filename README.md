@@ -64,5 +64,5 @@ This section provides a brief overview of Dungeons & Dragons rules and mechanics
 * Both agents taking random actions, this is the win % of `Leotris`
 
 #### PPO:
-* With `Strahd` taking random actions and `Leotris` following a proximal policy optimization strategy, this is the win % of `Leotris`:
-![PPO results]()
+* The figure below shows the win % in the case where `Strahd` takes random actions and `Leotris` follows a proximal policy optimization strategy.
+![PPO results](results/PPO.png)
