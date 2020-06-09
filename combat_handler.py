@@ -251,36 +251,50 @@ class CombatHandler:
                         combat_handler=self
                     )
 
+    def obtain_info_for_printing(self, creature, total_reward, sars_list=None):
+        leotris = self.get_combatant("Leotris")
+        strahd = self.get_combatant("Strahd")
+
+        if (sars_list is not None) and (creature == leotris):
+            for sars in sars_list:
+                reward = 0
+                if sars is not None:
+                    reward = sars[REWARD_INDEX]
+                total_reward += reward
+
+        last_state = leotris.strategy.get_raw_state(creature=leotris, enemy=strahd, combat_handler=self)
+        num_actions_used = leotris.action_count
+
+        return total_reward, last_state, num_actions_used
+
     def run(self):
         """
-        Runs Combat
+        Runs combat by:
+         - prompting each creature for actions until the "EndTurn" action is selected
+         - prompting each creature to learn from the results of the most recent round
+         - prompting each creature to learn from the results of the entire trajectory
         """
         self.initialize_combat()
         combat_is_over = False
         round_number = 0
         trajectory_dict = defaultdict(list)
-
-        # Todo: Remove these guys
-        leotris = self.get_combatant("Leotris")
-        strahd = self.get_combatant("Strahd")
         total_reward = 0
 
         while not combat_is_over:
             # Run one round of combat (one turn per creature)
             sars_dict, combat_is_over = self.execute_round(round_number)
             for creature, sars_list in sars_dict.items():
-                if creature == leotris:
-                    for sars in sars_list:
-                        reward = 0
-                        if sars is not None:
-                            reward = sars[REWARD_INDEX]
-                        total_reward += reward
+                total_reward, last_state, num_actions_used = self.obtain_info_for_printing(
+                    creature=creature,
+                    total_reward=total_reward,
+                    sars_list=sars_list
+                )
                 trajectory_dict[creature] += sars_list
 
             # Let creatures update their strategies
             self.update_strategies(sars_dict)
 
-            # Resets round resources (Actions used, movement, etc)
+            # Resets round resources (actions/movement used etc)
             self.end_of_round_cleanup()
 
             round_number += 1
@@ -291,7 +305,5 @@ class CombatHandler:
 
         # For reporting
         winner = self.determine_winner()
-        last_state = leotris.strategy.get_raw_state(creature=leotris, enemy=strahd, combat_handler=self)
-        num_actions_used = leotris.action_count
 
         return winner, total_reward, last_state, num_actions_used
