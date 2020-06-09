@@ -68,7 +68,7 @@ class Strategy:
             enemy.location[1] / combat_handler.environment.room_length,             # enemy y loc
             creature.attacks_used,                                                  # attacks used
             creature.movement_remaining / creature.speed,                           # remaining movement
-            (2 * creature.action_count - TIME_LIMIT) / TIME_LIMIT                   # num actions taken
+            creature.action_count / TIME_LIMIT                                      # num actions taken
         ]])
         raw_state = torch.from_numpy(raw_state).float()
         return raw_state
@@ -689,7 +689,7 @@ class MCDoubleDuelingDQN(DoubleDuelingDQN):
 
 
 class PPO(FunctionApproximation):
-    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=5e-4,
+    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-5,
                  gamma=0.99, update_frequency=30000, memory_length=16834, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
