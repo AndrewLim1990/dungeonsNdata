@@ -360,7 +360,7 @@ class FunctionApproximation(Strategy):
             self.t += 1
 
         # Return action
-        return self.index_to_action[action_index.data.tolist()[0][0]], None
+        return self.index_to_action[action_index.data.tolist()[0][0]], None, None
 
     def update_weights(self, predicted_batch, target_batch, emphasis_weights=None):
         self.n_weight_updates += 1
@@ -395,6 +395,9 @@ class FunctionApproximation(Strategy):
         self.update_weights(predicted_batch=predicted_batch, target_batch=target_batch)
 
     def update_step(self, action, creature, current_state, next_state, combat_handler):
+        if action is None:
+            return
+
         action_index = torch.tensor([[self.action_to_index[action]]])
 
         # Obtain reward
@@ -413,7 +416,7 @@ class FunctionApproximation(Strategy):
             self.target_net.load_state_dict(self.policy_net.state_dict())
         self.training_iteration += 1
 
-        return round(float(reward), 3)
+        return
 
     def determine_reward(self, creature, current_state, next_state, combat_handler):
         """
