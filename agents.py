@@ -434,13 +434,13 @@ class FunctionApproximation(Strategy):
             if not enemy.is_alive():
                 reward = 5
 
-        # Get raw state
-        raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
-
-        # Damage done
-        damage_done = (current_state - raw_next_state)[0][1]
-        reward += round(float(damage_done), 2) * 10
-
+        # # Get raw state
+        # raw_next_state = self.get_raw_state(creature, enemy, combat_handler)
+        #
+        # # Damage done
+        # damage_done = (current_state - raw_next_state)[0][1]
+        # reward += round(float(damage_done), 2) * 10
+        #
         # # Damage taken
         # damage_taken = (raw_next_state - current_state)[0][0]
         # reward += round(float(damage_taken), 2) * 10
@@ -618,7 +618,7 @@ class DoubleDQN(FunctionApproximation):
 
 
 class DoubleDuelingDQN(DoubleDQN):
-    def __init__(self, max_training_steps=1e5, epsilon_start=0.5, epsilon_end=0.05, alpha=1e-3,
+    def __init__(self, max_training_steps=1e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-5,
                  gamma=0.99, update_frequency=30000, memory_length=16834, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
