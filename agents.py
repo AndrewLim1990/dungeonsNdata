@@ -574,10 +574,10 @@ class DoubleDQN(FunctionApproximation):
         # Initialize weights
         self.policy_net = torch.nn.Sequential(
             torch.nn.Linear(self.n_states, h1),
-            torch.nn.LeakyReLU(),
+            torch.nn.ReLU(),
             torch.nn.Linear(h1, h1),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(h1, self.n_actions, bias=False),
+            torch.nn.ReLU(),
+            torch.nn.Linear(h1, self.n_actions),
         )
         self.target_net = copy.deepcopy(self.policy_net)
 
@@ -618,7 +618,7 @@ class DoubleDQN(FunctionApproximation):
 
 
 class DoubleDuelingDQN(DoubleDQN):
-    def __init__(self, max_training_steps=1e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-5,
+    def __init__(self, max_training_steps=5e6, epsilon_start=0.9, epsilon_end=0.05, alpha=1e-5,
                  gamma=0.99, update_frequency=30000, memory_length=16834, batch_size=128):
         super().__init__(
             max_training_steps, epsilon_start, epsilon_end, alpha, gamma, update_frequency, memory_length, batch_size
