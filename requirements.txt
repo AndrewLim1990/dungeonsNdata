@@ -1,6 +1,6 @@
 dill==0.3.1.1
 future==0.18.2
-joblib==0.14.1
+joblib==1.2.0
 numpy==1.18.1
 pandas==1.0.1
 Pillow==7.1.1
